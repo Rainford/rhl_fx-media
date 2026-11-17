@@ -1,0 +1,10 @@
+# Netlify publishes the RHL Journal app from the journal folder. No build step.
+[build]
+  base = "journal"
+  publish = "."
+  command = ""
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
