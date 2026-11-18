@@ -174,6 +174,7 @@ button.ci{cursor:pointer}
 .chips.bad button[aria-pressed=true]{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
 img.shot{max-width:100%;border-radius:8px;border:1px solid var(--line);display:block}
 .msg{font-size:12px;color:var(--mute);min-height:16px}
+input.masked{-webkit-text-security:disc;color:var(--mute)}
 .empty{color:var(--mute);padding:20px;text-align:center;border:1px dashed var(--line2);border-radius:10px}
 .jl{display:flex;flex-direction:column;gap:10px}
 .je{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--panel);display:flex;flex-direction:column;gap:6px;cursor:pointer;text-align:left;width:100%}
@@ -817,7 +818,7 @@ function pull(){
   }).catch(function(err){Store.status='error';Store.msg=(err&&err.message)||'Could not reach your account';render()});
 }
 function onUser(user){
-  var prev=Store.user&&Store.user.id;Store.user=user||null;
+  var prev=Store.user&&Store.user.id;Store.user=user||null;if((user&&user.id)!==prev){MT.code=null;MT.err='';MT.show=false}
   if(!user){Store.status='local';render();return}
   if(prev===user.id)return;
   if(lsGet(K.u)!==user.id){
@@ -872,11 +873,63 @@ function vSettings(){
     acct='<p style="margin:0">Signed in as <b>'+esc(Store.user.email||'you')+'</b></p><p class="hint" style="margin:0">'+esc(statusText())+(q?' · '+q+' change'+(q>1?'s':'')+' waiting to upload':'')+(Store.status==='error'&&Store.msg?' · '+esc(Store.msg):'')+'</p>'+
       '<div class="filters"><button class="btn ghost" type="button" id="auSync">Sync now</button><button class="btn ghost" type="button" id="auOut">Sign out</button></div>';
   }
-  return '<section class="panel"><h2>Account and sync</h2>'+acct+'<div class="msg" id="setMsg" aria-live="polite">'+esc(Store.formMsg||'')+'</div></section>'+
+  return '<section class="panel"><h2>Account and sync</h2>'+acct+'<div class="msg" id="setMsg" aria-live="polite">'+esc(Store.formMsg||'')+'</div></section>'+mt5Card(cfg)+
   '<section class="panel"><h2>Your data</h2><div class="filters"><button class="btn ghost" type="button" data-act="import">Import MT5 report</button><button class="btn ghost" type="button" id="bkOut">Download backup</button><button class="btn ghost" type="button" id="bkInBtn">Restore backup</button><input type="file" id="bkIn" accept=".json,application/json" hidden></div>'+
     '<p class="hint" style="margin:0">'+plural(realTrades().length,'trade')+' and '+plural(Object.keys(S.days).length,'journal day')+' saved. Download a backup now and then, even with sync on.</p></section>'+
   '<section class="panel"><h2>Put it on your home screen</h2><p style="margin:0">iPhone: open this page in Safari, tap Share, then <b>Add to Home Screen</b>.<br>Android: open it in Chrome, tap the ⋮ menu, then <b>Install app</b>.</p></section>';
 }
+/* ---------------- MT5 sync code ---------------- */
+var MT={code:null,loading:false,err:'',show:false};
+function mt5Card(cfg){
+  if(!Store.user||!cfg)return '';
+  if(MT.code===null&&!MT.loading&&!MT.err)loadSyncCode();
+  function row(label,id,val,secret){return '<label class="f" for="'+id+'">'+label+'<div class="filters" style="flex-wrap:nowrap"><input type="text" id="'+id+'" readonly value="'+esc(val)+'" style="flex:1;min-width:0"'+(secret&&!MT.show?' class="masked"':'')+'><button class="btn ghost sm" type="button" data-copy="'+id+'">Copy</button></div></label>'}
+  var body;
+  if(MT.loading)body='<div class="hint">Loading your sync code…</div>';
+  else if(MT.err)body='<div class="verdict bad">'+esc(MT.err)+'</div><div class="filters"><button class="btn ghost sm" type="button" id="mtRetry">Try again</button></div>';
+  else if(!MT.code)body='<p class="hint" style="margin:0">Make a sync code, then paste it into the RHL Journal Sync add-on in MT5.</p><div class="filters"><button class="btn" type="button" id="mtNew">Make sync code</button></div>';
+  else body='<p class="hint" style="margin:0">Paste these three into the add-on’s inputs in MT5.</p>'+
+    row('Supabase URL','mtUrl',cfg.url)+row('Key','mtKey',cfg.key)+row('Sync code','mtCode',MT.code,true)+
+    '<div class="filters"><button class="btn ghost sm" type="button" id="mtShow">'+(MT.show?'Hide code':'Show code')+'</button><button class="btn ghost sm danger" type="button" id="mtNew">'+(MT.armed?'Tap again: old code stops working':'Make a new code')+'</button></div>';
+  return '<section class="panel"><h2>Sync from MT5</h2>'+body+
+    '<ol class="hint" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">'+
+    '<li>In Supabase, run <b>supabase-mt5-sync.sql</b> once (SQL Editor, New query, Run).</li>'+
+    '<li>In MT5: Tools → Options → Expert Advisors → tick <b>Allow WebRequest for listed URL</b> and add your Supabase URL.</li>'+
+    '<li>Drag <b>RHL_Journal_Sync</b> onto any chart, paste the URL, key and sync code, and click OK.</li>'+
+    '<li>Closed trades then appear here within seconds while MT5 is open. Grade them and add your planned stop.</li></ol>'+
+    '<div class="msg" id="mtMsg" aria-live="polite"></div></section>';
+}
+function loadSyncCode(){
+  MT.loading=true;
+  Store.sb.from('sync_tokens').select('token').then(function(r){
+    MT.loading=false;
+    if(r.error){MT.err=/sync_tokens|schema cache|does not exist/i.test(r.error.message||'')?'Run supabase-mt5-sync.sql in Supabase first, then tap Try again.':'Could not load your sync code. Check your connection.';}
+    else MT.code=(r.data&&r.data[0]&&r.data[0].token)||'';
+    render();
+  });
+}
+function newSyncCode(){
+  var b=new Uint8Array(24);crypto.getRandomValues(b);
+  var code='rhl_'+Array.prototype.map.call(b,function(x){return ('0'+x.toString(16)).slice(-2)}).join('');
+  MT.loading=true;render();
+  Store.sb.from('sync_tokens').upsert({user_id:Store.user.id,token:code},{onConflict:'user_id'}).then(function(r){
+    MT.loading=false;MT.armed=false;
+    if(r.error)MT.err=/sync_tokens|schema cache|does not exist/i.test(r.error.message||'')?'Run supabase-mt5-sync.sql in Supabase first, then tap Try again.':'Could not save the code. Check your connection.';
+    else{MT.code=code;MT.show=true}
+    render();
+  });
+}
+$('view').addEventListener('click',function(ev){
+  var t=ev.target,id=t&&t.id;
+  var cp=t.closest&&t.closest('[data-copy]');
+  if(cp){var el=$(cp.getAttribute('data-copy'));if(!el)return;
+    var done=function(){var m=$('mtMsg');if(m)m.textContent='Copied.'};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(el.value).then(done,function(){el.select()});else{el.select();try{document.execCommand('copy');done()}catch(e){}}
+    return}
+  if(id==='mtRetry'){MT.err='';MT.code=null;render();return}
+  if(id==='mtShow'){MT.show=!MT.show;render();return}
+  if(id==='mtNew'){if(MT.code&&!MT.armed){MT.armed=true;render();return}newSyncCode();return}
+});
 function plural(n,w){return n+' '+w+(n===1?'':'s')}
 function setMsg(t){Store.formMsg=t;if($('setMsg'))$('setMsg').textContent=t}
 $('view').addEventListener('click',function(ev){
@@ -912,6 +965,7 @@ $('view').addEventListener('change',function(ev){
   }).catch(function(){setMsg('That file is not an RHL Journal backup.')});
 });
 window.addEventListener('online',function(){flush()});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&Store.user)pull()});
 
 /* ---------------- start ---------------- */
 S.trades=lsGet(K.t)||[];S.days=lsGet(K.d)||{};S.demo=false;showDemoIfEmpty();S.loaded=true;
