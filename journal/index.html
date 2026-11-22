@@ -138,8 +138,14 @@ tbody tr.click:hover td{background:rgba(255,255,255,.025)}
 .cal .d .n{font-size:11px;color:var(--mute)}
 .cal .d b{font-family:var(--mono);font-size:13px;font-weight:600;margin-top:auto}
 .cal .d small{font-size:10px;color:var(--mute)}
-.cal .d.win{background:var(--good-bg);border-color:rgba(47,207,138,.35)}
-.cal .d.loss{background:var(--bad-bg);border-color:rgba(255,93,108,.35)}
+.cal .d.win{background:#0b3f2e;border-color:#2fcf8a}
+.cal .d.loss{background:#6a1c25;border-color:#ff5d6c}
+.cal .d.be{background:#1d2b52;border-color:#5b9dff}
+.cal .d.win b,.cal .d.loss b,.cal .d.be b{color:#fff;font-size:15px}
+.cal .d.win small,.cal .d.loss small,.cal .d.be small{color:rgba(255,255,255,.85)}
+.cal .d.win small.wr,.cal .d.loss small.wr,.cal .d.be small.wr{color:rgba(255,255,255,.6)}
+.cal .d.win .n,.cal .d.loss .n,.cal .d.be .n{color:#fff}
+.cal .wkc b{font-size:16px}
 .cal .d.note{box-shadow:inset 0 2px 0 var(--accent)}
 .cal .wk{font-size:11px}
 @media (max-width:560px){.cal{gap:3px}.cal .d{min-height:54px;padding:4px}.cal .d b{font-size:11px}.cal .d small{display:none}}
@@ -547,7 +553,7 @@ function vCalendar(){
     var wkKeys=[];
     for(var i=0;i<7;i++){var d=new Date(start);d.setDate(start.getDate()+w*7+i);var k=dayKey(d),inM=d.getMonth()===m.m,v=days[k],note=S.days[k];wkKeys.push(k);
       if(inM&&v!=null){monthNet+=v;mDays++;if(v>0)gDays++}
-      cells+='<button type="button" class="d'+(inM?'':' out')+(inM&&v!=null?(v>0?' win':v<0?' loss':''):'')+(inM&&note?' note':'')+'" '+(inM?'data-day="'+k+'"':'disabled tabindex="-1"')+'><span class="n">'+d.getDate()+'</span>'+(inM&&v!=null?'<b class="'+vClass(v)+'">'+fmtV(v)+'</b><small>'+cnt[k]+' trade'+(cnt[k]>1?'s':'')+'</small><small class="wr">'+Math.round((wins[k]||0)/cnt[k]*100)+'% win</small>':'')+'</button>'}
+      cells+='<button type="button" class="d'+(inM?'':' out')+(inM&&v!=null?(v>0?' win':v<0?' loss':' be'):'')+(inM&&note?' note':'')+'" '+(inM?'data-day="'+k+'"':'disabled tabindex="-1"')+'><span class="n">'+d.getDate()+'</span>'+(inM&&v!=null?'<b class="'+vClass(v)+'">'+fmtV(v)+'</b><small>'+cnt[k]+' trade'+(cnt[k]>1?'s':'')+'</small><small class="wr">'+Math.round((wins[k]||0)/cnt[k]*100)+'% win</small>':'')+'</button>'}
     var ws=weekStats(wkKeys[0],wkKeys[6],list);weeks.push({n:w+1,from:wkKeys[0],to:wkKeys[6],st:ws});
     cells+='<a class="d wkc" href="#wk-'+(w+1)+'"><span class="n">Week '+(w+1)+'</span>'+(ws.st.closed?'<b class="'+vClass(ws.st.net)+'">'+fmtV(ws.st.net)+'</b><small>'+ws.tdays+' day'+(ws.tdays===1?'':'s')+'</small>':'<small>No trades</small>')+'</a>'}
   return '<section class="panel"><div class="ph"><div class="filters"><button class="btn ghost sm" type="button" id="mPrev" aria-label="Previous month">←</button><h2 style="font-size:15px;color:var(--text);text-transform:none;letter-spacing:0">'+MONTHS[m.m]+' '+m.y+'</h2><button class="btn ghost sm" type="button" id="mNext" aria-label="Next month">→</button></div>'+
