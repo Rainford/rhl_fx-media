@@ -161,6 +161,9 @@ button.ci{cursor:pointer}
 .ci .tag{font-size:9px;color:var(--mute);border:1px solid var(--line2);border-radius:4px;padding:1px 4px;letter-spacing:.06em}
 .ci .pts{font-family:var(--mono);font-size:12px;color:var(--mute)}
 .ci.on .pts{color:var(--good)}
+.ci.flagon{border-color:rgba(255,93,108,.5);background:var(--bad-bg)}
+.ci.flagon .box{background:var(--bad);border-color:var(--bad);color:#1a0b0d;font-weight:700}
+.ci.flagon .pts{color:var(--bad)}
 .srow{display:grid;grid-template-columns:40px minmax(0,1fr);gap:10px;align-items:center}
 .srow span{font-family:var(--mono);color:var(--mute);font-size:12px}
 .gradebar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:9px;border:1px solid var(--line2);background:var(--inset)}
@@ -177,6 +180,13 @@ img.shot{max-width:100%;border-radius:8px;border:1px solid var(--line);display:b
 input.masked{-webkit-text-security:disc;color:var(--mute)}
 .empty{color:var(--mute);padding:20px;text-align:center;border:1px dashed var(--line2);border-radius:10px}
 .jl{display:flex;flex-direction:column;gap:10px}
+.heat,.heatm{display:grid;grid-template-columns:30px repeat(26,14px);gap:3px;width:max-content}
+.heat{grid-template-rows:repeat(7,14px)}
+.heatm{font-size:10px;color:var(--mute);margin-bottom:4px}
+.heat .hl{font-size:9px;color:var(--mute);line-height:14px}
+.hc{display:inline-block;width:14px;height:14px;padding:0;border-radius:3px;border:1px solid var(--line);background:var(--inset);cursor:pointer}
+.hc:disabled{cursor:default}
+#setBtn{text-decoration:none;padding-inline:10px}
 .je{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--panel);display:flex;flex-direction:column;gap:6px;cursor:pointer;text-align:left;width:100%}
 .je .top2{display:flex;justify-content:space-between;gap:10px}
 .je p{margin:0;color:var(--mute);white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
@@ -200,10 +210,11 @@ input.masked{-webkit-text-security:disc;color:var(--mute)}
       <div class="seg" id="unitSeg" aria-label="Show results in"><button type="button" data-u="R" aria-pressed="true">R</button><button type="button" data-u="$" aria-pressed="false">$</button></div>
       <button class="btn ghost" type="button" id="importBtn">Import MT5</button>
       <button class="btn" type="button" id="addBtn">+ Trade</button>
+      <a class="btn ghost" href="#settings" id="setBtn" aria-label="Settings" title="Settings">⚙</a>
       <input type="file" id="importFile" accept=".html,.htm,.csv,.txt" hidden>
     </div>
     <nav class="tabs" id="tabs">
-      <a href="#dashboard">Dashboard</a><a href="#trades">Trades</a><a href="#calendar">Calendar</a><a href="#playbook">Playbook</a><a href="#journal">Journal</a><a href="#settings">Settings</a>
+      <a href="#dashboard">Dashboard</a><a href="#trades">Trades</a><a href="#calendar">Calendar</a><a href="#progress">Progress</a><a href="#playbook">Playbook</a><a href="#journal">Journal</a>
     </nav>
   </div>
 </header>
@@ -241,28 +252,58 @@ function sessionOf(when){
   var a=h>=0&&h<9, l=h>=7&&h<16, n=h>=12&&h<21;
   return{name:n&&l?'London / New York':n?'New York':l&&a?'Asia / London':l?'London':a?'Asia':'Outside sessions',ok:a||l||n,key:n?'New York':l?'London':a?'Asia':'Outside'};
 }
-function blankChecks(){return{signal:false,brk1h:false,retest:false,prot:false,cont:false,htf:false}}
+function blankChecks(){return{signal:false,brk1h:false,retest:false,prot:false,cont:false,htf:false,ec:false,rej:false,ema:false,trend:false,shift1:false,shift15:false,zfail:false}}
+/* Same rules and weights as RHL_FX+G (RHL_FX_V3 + Grader).
+   Normal = with the 4H bias. Impulsive = against the 4H bias (reversal). */
 function grade(t){
   var long=t.dir==='Long', want=long?'Bullish':'Bearish', is15=t.model!=='1H';
+  var c=t.checks||blankChecks();
   var e=+t.entry, s=+t.sl, tp=+t.tp, has=e>0&&s>0&&tp>0;
   var sides=has&&(long?(s<e&&tp>e):(s>e&&tp<e));
   var risk=Math.abs(e-s), rr=has&&sides&&risk>0?Math.abs(tp-e)/risk:0;
-  var sess=sessionOf(t.open), c=t.checks||blankChecks();
-  var ok4=t.s4h===want, ok1=t.s1h===want, ok15=t.s15===want, okRR=rr>=3, w=is15?10:15, rows=[];
+  var sess=sessionOf(t.open);
+  var imp=!!t.s4h&&t.s4h!==want;
+  var ok4=t.s4h===want, ok1=t.s1h===want, ok15=t.s15===want, rows=[];
   function H(x){rows.push({head:x})} function R(l,ok,p,k){rows.push({label:l,ok:!!ok,pts:p,key:k||null})}
-  H('BIAS ALIGNMENT'); R('4H '+(t.s4h||'not set'),ok4,w); R('1H '+(t.s1h||'not set'),ok1,w); if(is15)R('15M '+(t.s15||'not set'),ok15,10);
-  H('INDICATION'); R('RHL_FX '+(long?'BUY':'SELL')+' on '+(t.model||'15M'),c.signal,10,'signal'); R('1H break with bias',c.brk1h,10,'brk1h');
-  H('CORRECTION'); R('Retest of broken liquidity',c.retest,15,'retest'); R('Protected '+(long?'low':'high')+' held',c.prot,10,'prot');
-  H('CONTINUATION'); R((t.model||'15M')+' break with bias',c.cont,10,'cont');
-  H('RISK AND TIMING'); R('R:R at least 1:3',okRR,10); R('Session: '+sess.name,sess.ok,5);
-  H('BONUS'); R('R:R 1:4 or better',rr>=4,5); R('R:R 1:6 or better',rr>=6,5); R('Single HTF target',c.htf,5,'htf');
-  var score=0; rows.forEach(function(r){if(!r.head&&r.ok)score+=r.pts});
-  var brk='';
-  if(!ok4)brk='Against 4H bias';
-  else if(!okRR)brk=has&&!sides?'Stop or target on the wrong side of entry':has?'Planned R:R below 1:3':'Entry, stop and target needed';
-  else if(!sess.ok)brk='Outside Asia, London and New York';
+  function F(l,k){rows.push({label:l,ok:!!c[k],pts:0,key:k,flag:true})}
+  var base=0,bonus=0,brk='',entryOk;
+  if(!imp){
+    var w=is15?10:15;
+    H('BIAS ALIGNMENT'); R('4H '+(t.s4h||'not set'),ok4,w); R('1H '+(t.s1h||'not set'),ok1,w); if(is15)R('15M '+(t.s15||'not set'),ok15,10);
+    H('INDICATION'); R('RHL_FX '+(long?'BUY':'SELL')+' on '+(t.model||'15M'),c.signal,10,'signal'); R('1H break with bias',c.brk1h,10,'brk1h');
+    H('CORRECTION'); R('Retest of broken liquidity',c.retest,20,'retest'); R('Protected '+(long?'low':'high')+' held',c.prot,10,'prot'); F('Retest zone failed (closed through it)','zfail');
+    H('CONTINUATION'); R((t.model||'15M')+' break with bias',c.cont,15,'cont');
+    H('TIMING'); R('Session: '+sess.name,sess.ok,5);
+    rows.forEach(function(r){if(!r.head&&r.ok&&!r.flag)base+=r.pts});
+    H('BONUS (counts once the base is 100)');
+    var bon=[['R:R 1:3 or better',rr>=3,null],['EMA / cloud agree',c.ec,'ec'],['Target at a 4H swing',c.htf,'htf'],['Rejection candle from retest zone',c.rej,'rej']];
+    bon.forEach(function(b){R(b[0],b[1],5,b[2]);if(b[1])bonus+=5});
+    entryOk=c.cont;
+    if(!t.s4h)brk='4H bias not set';
+    else if(c.zfail)brk='Retest zone failed';
+    else if(c.cont&&!sides)brk=!has?'Entry, stop and target needed':'Stop or target on the wrong side of entry';
+    else if(!sess.ok)brk='Outside Asia, London and New York';
+  }else{
+    var iw=is15?15:30, o1=ok1||c.shift1, o15=ok15||c.shift15;
+    H('IMPULSIVE: BIAS (4H '+t.s4h+', not graded)');
+    R('1H '+(t.s1h||'not set')+(c.shift1&&!ok1?' → shifting':''),o1,iw); if(is15)R('15M '+(t.s15||'not set')+(c.shift15&&!ok15?' → shifting':''),o15,15);
+    R('1H shifting ('+(long?'2+ higher lows':'2+ lower highs')+')',c.shift1,0,'shift1'); if(is15)R('15M shifting ('+(long?'2+ higher lows':'2+ lower highs')+')',c.shift15,0,'shift15');
+    H('INDICATION'); R('RHL_FX '+(long?'BUY':'SELL')+' on '+(t.model||'15M'),c.signal,10,'signal'); R('1H break with bias',c.brk1h,5,'brk1h');
+    H('CORRECTION'); R('Retest of broken liquidity',c.retest,10,'retest'); R('Retest stayed '+(long?'at/above':'at/below')+' the EMA',c.ema,15,'ema'); R('Protected '+(long?'low':'high')+' held',c.prot,10,'prot'); F('Retest zone failed (closed through it)','zfail');
+    H('ENTRY'); R((t.model||'15M')+' rejection candle in zone',c.rej,10,'rej');
+    H('MARKET & TIMING (R:R not graded)'); R('Trending, not ranging',c.trend,5,'trend'); R('Session: '+sess.name,sess.ok,5);
+    rows.forEach(function(r){if(!r.head&&r.ok&&!r.flag)base+=r.pts});
+    entryOk=c.rej;
+    if(!o1)brk='Against 1H bias';
+    else if(c.zfail)brk='Retest zone failed';
+    else if(c.retest&&!c.ema)brk=long?'Closed below the EMA':'Closed above the EMA';
+    else if(c.brk1h&&!c.trend)brk='Ranging market';
+    else if(!sess.ok)brk='Outside Asia, London and New York';
+  }
+  var score=base>=100?base+bonus:base;
+  if(!brk&&!entryOk)brk=imp?'Entered without a rejection candle':'Entered before the entry break';
   var g=brk?'NO TRADE':score>=100?'A+':score>=90?'A':score>=80?'B':score>=70?'C':'NO TRADE';
-  return{rows:rows,score:score,grade:g,rr:rr,brk:brk,sess:sess};
+  return{rows:rows,score:score,grade:g,rr:rr,brk:brk,sess:sess,mode:imp?'Impulsive':'Normal'};
 }
 function gClass(g){return !g?'U':g==='NO TRADE'?'N':g.charAt(0)==='A'?'A':g==='B'?'B':'C'}
 
@@ -501,7 +542,7 @@ function vPlaybook(){
     '<div class="rule"><h3 class="b">1 · INDICATION</h3><ul><li>Impulse breaks structure</li><li>RHL_FX prints the BUY or SELL</li><li>1H break with the higher-timeframe bias</li></ul></div>'+
     '<div class="rule"><h3 class="w">2 · CORRECTION</h3><ul><li>Pullback to the retest zone at the broken level</li><li>Protected high or low holds</li><li>No second signal needed</li></ul></div>'+
     '<div class="rule"><h3 class="g">3 · CONTINUATION</h3><ul><li>15M or 1H break in the bias direction</li><li>Stop just beyond the zone</li><li>One target: the opposite liquidity. Set it and forget it.</li></ul></div>'+
-    '<div class="rule"><h3>RULES</h3><ul><li>No confirmation, no trade</li><li>At least 1:3, usually 1:6 to 1:10</li><li>Only in Asia, London or New York</li><li>US30, JP225, USOIL, USTEC, GOLD</li></ul></div>'+
+    '<div class="rule"><h3>RULES</h3><ul><li>No confirmation, no trade</li><li>Aim for 1:3 or better (a bonus in the grade)</li><li>Only in Asia, London or New York</li><li>US30, JP225, USOIL, USTEC, GOLD</li></ul></div>'+
   '</div></section>'+
   '<div class="grid2"><section class="panel"><h2>Does following the plan pay?</h2><div class="rules">'+card('IN PLAN',on)+card('OUTSIDE PLAN',off)+'</div></section>'+
   '<section class="panel"><h2>Do higher grades win more?</h2><div class="rules">'+card('A+ AND A',gA)+card('B, C AND NO TRADE',gLow)+'</div></section></div>'+
@@ -510,7 +551,7 @@ function vPlaybook(){
 }
 
 function vJournal(){
-  var keys=Object.keys(S.days).sort().reverse(),list=all();
+  var keys=Object.keys(S.days).filter(isDayKey).sort().reverse(),list=all();
   var today=dayKey(new Date());
   return '<section class="panel"><div class="ph"><h2>Daily journal</h2><button class="btn sm" type="button" data-day="'+today+'">Write today</button></div>'+
     (keys.length?'<div class="jl">'+keys.map(function(k){var e=S.days[k],dl=list.filter(function(t){return t._d.day===k&&t._d.res!=='open'&&val(t)!=null}),net=dl.reduce(function(a,t){return a+val(t)},0);
@@ -519,7 +560,135 @@ function vJournal(){
     :'<div class="empty">No entries yet. Write a short plan before the session and a review after. It takes two minutes.</div>')+'</section>';
 }
 
-var VIEWS={dashboard:vDashboard,trades:vTrades,calendar:vCalendar,playbook:vPlaybook,journal:vJournal,settings:vSettings};
+/* ---------------- progress tracker (daily rules) ---------------- */
+function isDayKey(k){return /^\d{4}-\d{2}-\d{2}$/.test(k)}
+var PCFG_ID='cfg-progress';
+var PRULES=[
+  {id:'stop',name:'Planned stop on every trade',cond:function(){return 'Every trade'}},
+  {id:'graded',name:'Grade every trade',cond:function(){return 'Every trade'}},
+  {id:'grade',name:'Only take C or better',cond:function(){return 'No NO TRADE grades'}},
+  {id:'session',name:'Trade only in Asia, London or New York',cond:function(){return 'Every trade'}},
+  {id:'plan',name:'Follow the plan',cond:function(){return 'No trade marked outside the plan'}},
+  {id:'maxTrades',name:'Max trades per day',num:true,def:2,unit:'',cond:function(v){return '≤ '+v+' trade'+(v==1?'':'s')}},
+  {id:'lossTrade',name:'Max loss per trade',num:true,def:1,unit:'R',cond:function(v){return '≤ '+v+'R'}},
+  {id:'lossDay',name:'Max loss per day',num:true,def:2,unit:'R',cond:function(v){return '≤ '+v+'R'}},
+  {id:'journal',name:'Write the daily journal',cond:function(){return 'Plan or review saved'}}
+];
+function pcfg(){
+  var c=S.days[PCFG_ID]||{},r=c.rules||{},out={rules:{},custom:Array.isArray(c.custom)?c.custom:[]};
+  PRULES.forEach(function(p){var x=r[p.id]||{};out.rules[p.id]={on:x.on!==false,val:x.val!=null&&!isNaN(+x.val)?+x.val:p.def}});
+  return out;
+}
+function realDays(){var o={};Object.keys(S.days).forEach(function(k){if(isDayKey(k))o[k]=S.days[k]});return o}
+// result of every rule for one day: true / false / null (not applicable)
+function dayRules(k,byDay,cfg){
+  var tl=byDay[k]||[],e=S.days[k]||{},res={},has=tl.length>0,rs=tl.map(function(t){return t._d.r}).filter(function(r){return r!=null});
+  function on(id){return cfg.rules[id].on}
+  if(on('stop'))res.stop=has?tl.every(function(t){return +t.sl>0}):null;
+  if(on('graded'))res.graded=has?tl.every(function(t){return !!t._d.g}):null;
+  if(on('grade')){var gr=tl.filter(function(t){return t._d.g});res.grade=gr.length?gr.every(function(t){return t._d.g.grade!=='NO TRADE'}):null}
+  if(on('session'))res.session=has?tl.every(function(t){return sessionOf(t.open).ok}):null;
+  if(on('plan'))res.plan=has?tl.every(function(t){return t._d.plan!=='No'}):null;
+  if(on('maxTrades'))res.maxTrades=has?tl.length<=cfg.rules.maxTrades.val:null;
+  if(on('lossTrade'))res.lossTrade=rs.length?rs.every(function(r){return r>=-cfg.rules.lossTrade.val-0.05}):null;
+  if(on('lossDay'))res.lossDay=rs.length?rs.reduce(function(a,b){return a+b},0)>=-cfg.rules.lossDay.val-0.05:null;
+  if(on('journal'))res.journal=(has||k===dayKey(new Date()))?!!(e.plan||e.review):null;
+  var tracked=has||!!(e.plan||e.review||e.mood)||k===dayKey(new Date());
+  cfg.custom.forEach(function(c){res['c_'+c.id]=tracked?!!(e.manual&&e.manual[c.id]):null});
+  var a=0,p=0;Object.keys(res).forEach(function(id){if(res[id]!==null){a++;if(res[id])p++}});
+  return{res:res,app:a,pass:p,tracked:tracked&&a>0};
+}
+function progressData(){
+  var cfg=pcfg(),byDay={},today=dayKey(new Date());
+  realTrades().forEach(function(t){if(!t._d)t._d=derive(t);var k=t._d.day;if(k)(byDay[k]=byDay[k]||[]).push(t)});
+  var keys={};Object.keys(byDay).forEach(function(k){keys[k]=1});Object.keys(realDays()).forEach(function(k){keys[k]=1});keys[today]=1;
+  var days={};Object.keys(keys).forEach(function(k){days[k]=dayRules(k,byDay,cfg)});
+  return{cfg:cfg,byDay:byDay,days:days,today:today};
+}
+function rulesList(cfg){
+  var l=[];PRULES.forEach(function(p){if(cfg.rules[p.id].on)l.push({id:p.id,name:p.num?p.name:p.name,cond:p.cond(cfg.rules[p.id].val)})});
+  cfg.custom.forEach(function(c){l.push({id:'c_'+c.id,name:c.text,cond:'Tick it each day',manual:c.id})});
+  return l;
+}
+function vProgress(){
+  if(S.demo&&!realDays()[dayKey(new Date())])return '<section class="panel"><h2>Progress</h2><div class="empty">Progress tracks your own rules day by day. Add or import your first trade and it starts counting.</div></section>'+rulesEditor(pcfg());
+  var P=progressData(),cfg=P.cfg,rl=rulesList(cfg),T=P.days[P.today];
+  var range=S.prange||'30',ranges=[['7','7 days'],['30','30 days'],['90','90 days'],['all','All time']];
+  var cut=range==='all'?'':dayKey(new Date(Date.now()-(+range-1)*864e5));
+  var keys=Object.keys(P.days).filter(function(k){return P.days[k].tracked&&(!cut||k>=cut)}).sort();
+  var app=0,pass=0;keys.forEach(function(k){app+=P.days[k].app;pass+=P.days[k].pass});
+  var pscore=app?Math.round(pass/app*100):null;
+  // streak: most recent tracked days (today only if already complete) with every rule followed
+  var all_=Object.keys(P.days).filter(function(k){return P.days[k].tracked}).sort().reverse(),streak=0;
+  for(var i=0;i<all_.length;i++){var d=P.days[all_[i]];if(all_[i]===P.today&&d.pass<d.app)continue;if(d.pass===d.app)streak++;else break}
+  // per-rule stats over the period
+  var rows=rl.map(function(r){var a=0,p=0,st=0,stOpen=true,fv=[],bv=[];
+    keys.slice().reverse().forEach(function(k){var v=P.days[k].res[r.id];if(v===null||v===undefined)return;
+      if(k===P.today&&!v&&stOpen)return; a++;if(v)p++;if(stOpen){if(v)st++;else stOpen=false}
+      var tl=P.byDay[k]||[],sum=tl.reduce(function(s,t){var x=val(t);return x==null?s:s+x},0);if(tl.length)(v?fv:bv).push(sum)});
+    function avg(x){return x.length?x.reduce(function(s,v){return s+v},0)/x.length:null}
+    return{r:r,a:a,p:p,st:st,rate:a?p/a:null,fav:avg(fv),bav:avg(bv)}});
+  var gauge=function(v){var pct=v==null?0:v,ang=Math.PI*(1-pct/100),x=60+48*Math.cos(ang),y=60-48*Math.sin(ang),col=v==null?'var(--line2)':v>=80?'var(--good)':v>=50?'var(--warn)':'var(--bad)';
+    return '<svg viewBox="0 0 120 70" style="width:130px;height:auto" aria-hidden="true"><path d="M12 60 A48 48 0 0 1 108 60" fill="none" stroke="var(--line2)" stroke-width="10" stroke-linecap="round"/>'+(v?'<path d="M12 60 A48 48 0 0 1 '+x.toFixed(1)+' '+y.toFixed(1)+'" fill="none" stroke="'+col+'" stroke-width="10" stroke-linecap="round"/>':'')+'</svg>'};
+  var tlist=rl.map(function(r){var v=T.res[r.id];var st=v===null||v===undefined?'na':v?'ok':'no';
+    var inner='<span class="box" aria-hidden="true">'+(st==='ok'?'✓':st==='no'&&!r.manual?'×':'')+'</span><span class="lab">'+esc(r.name)+'<br><span class="hint">'+esc(r.cond)+'</span></span><span class="pts">'+(st==='na'?((P.byDay[P.today]||[]).length?'not measurable':'no trades yet'):st==='ok'?'done':r.manual?'tap when done':'missed')+'</span>';
+    return r.manual?'<button type="button" class="ci '+(st==='ok'?'on':'off')+'" data-man="'+esc(r.manual)+'" aria-pressed="'+(st==='ok')+'">'+inner+'</button>':'<div class="ci auto '+(st==='ok'?'on':st==='no'?'off':'')+'"'+(st==='na'?' style="opacity:.55"':'')+'>'+inner+'</div>'}).join('');
+  return '<div class="kpis">'+
+    kpi('Current streak',streak+' day'+(streak===1?'':'s'),streak?'g':'','Days in a row with every rule followed')+
+    '<div class="kpi"><span>Period score</span><div style="display:flex;align-items:center;gap:8px">'+gauge(pscore)+'<b class="'+(pscore==null?'':pscore>=80?'g':pscore>=50?'w':'b')+'">'+(pscore==null?'-':pscore+'%')+'</b></div><small>'+pass+' of '+app+' rule checks passed</small></div>'+
+    kpi('Today’s progress',T.pass+'/'+T.app,T.app&&T.pass===T.app?'g':'',T.app?Math.round(T.pass/T.app*100)+'% of today’s rules':'No rules apply yet today','<div class="bar2" aria-hidden="true"><i style="width:'+(T.app?T.pass/T.app*100:0)+'%;background:var(--good)"></i></div>')+
+  '</div>'+
+  '<div class="grid-dash"><section class="panel"><div class="ph"><h2>Today</h2><button class="btn ghost sm" type="button" data-day="'+P.today+'">Open today’s journal</button></div><div class="chk">'+(tlist||'<div class="hint">Turn on some rules below.</div>')+'</div></section>'+
+  '<section class="panel"><div class="ph"><h2>Rule tracker</h2><span class="hint">Brighter = more rules followed that day</span></div>'+heatmap(P)+'</section></div>'+
+  '<section class="panel"><div class="ph"><h2>Your rules</h2><div class="seg" id="pRange">'+ranges.map(function(r){return '<button type="button" data-pr="'+r[0]+'" aria-pressed="'+(range===r[0])+'">'+r[1]+'</button>'}).join('')+'</div></div>'+
+  '<div class="tbl"><table><thead><tr><th></th><th>Rule</th><th>Condition</th><th class="r">Rule streak</th><th class="r">Avg day when followed</th><th class="r">Avg day when broken</th><th class="r">Follow rate</th></tr></thead><tbody>'+
+  rows.map(function(x){var ic=x.rate==null?'<span class="m">–</span>':x.rate>=.9?'<span class="g">✓</span>':x.rate>=.6?'<span class="w">!</span>':'<span class="b">✕</span>';
+    return '<tr><td>'+ic+'</td><td style="white-space:normal;min-width:160px">'+esc(x.r.name)+'</td><td class="m">'+esc(x.r.cond)+'</td><td class="r num">'+x.st+'</td><td class="r num '+vClass(x.fav)+'">'+fmtV(x.fav)+'</td><td class="r num '+vClass(x.bav)+'">'+fmtV(x.bav)+'</td><td class="r num '+(x.rate==null?'m':x.rate>=.9?'g':x.rate>=.6?'w':'b')+'">'+(x.rate==null?'-':Math.round(x.rate*100)+'%')+'</td></tr>'}).join('')+
+  '</tbody></table></div><p class="hint" style="margin:0">Avg day compares your average day result on days you kept the rule with days you broke it. That gap is what the rule is worth to you.</p></section>'+
+  rulesEditor(cfg);
+}
+function heatmap(P){
+  var end=new Date();end.setHours(12,0,0,0);var dow=(end.getDay()+6)%7;
+  var start=new Date(end);start.setDate(end.getDate()-dow-25*7);
+  var weeks=26,cells='',months='',lastM=-1;
+  for(var w=0;w<weeks;w++){var d0=new Date(start);d0.setDate(start.getDate()+w*7);
+    if(d0.getMonth()!==lastM&&w<weeks-1){months+='<span style="grid-column:'+(w+2)+';grid-row:1">'+MONTHS[d0.getMonth()].slice(0,3)+'</span>';lastM=d0.getMonth()}}
+  var lab=['Mon','','Wed','','Fri','','Sun'];
+  for(var r=0;r<7;r++){cells+='<span class="hl">'+lab[r]+'</span>';
+    for(var w2=0;w2<weeks;w2++){var d=new Date(start);d.setDate(start.getDate()+w2*7+r);var k=dayKey(d),x=P.days[k],fut=d>end;
+      var st=fut?'opacity:0':'';var bg='';
+      if(x&&x.tracked){var sc=x.app?x.pass/x.app:0;bg='background:rgba(91,157,255,'+(0.18+0.82*sc).toFixed(2)+')'}
+      cells+='<button type="button" class="hc" '+(fut?'disabled tabindex="-1"':'data-day="'+k+'"')+' style="'+st+';'+bg+'" title="'+k+(x&&x.tracked?': '+x.pass+'/'+x.app+' rules':'')+'"></button>'}}
+  return '<div class="heatwrap" style="overflow-x:auto"><div class="heatm"><span></span>'+months+'</div><div class="heat">'+cells+'</div></div>'+
+    '<div class="filters hint" style="justify-content:flex-end;gap:4px">Fewer <i class="hc" style="background:rgba(91,157,255,.18)"></i><i class="hc" style="background:rgba(91,157,255,.45)"></i><i class="hc" style="background:rgba(91,157,255,.73)"></i><i class="hc" style="background:rgba(91,157,255,1)"></i> All rules</div>';
+}
+function rulesEditor(cfg){
+  return '<section class="panel"><details id="pEdit"'+(S.pEditOpen?' open':'')+'><summary class="ph" style="cursor:pointer;list-style:none"><h2>Edit rules</h2><span class="btn ghost sm">'+(S.pEditOpen?'Close':'Open')+'</span></summary>'+
+  '<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">'+
+  PRULES.map(function(p){var c=cfg.rules[p.id];return '<div class="ci" style="gap:12px"><label style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer"><input type="checkbox" data-ron="'+p.id+'"'+(c.on?' checked':'')+'> <span class="lab">'+esc(p.name)+'</span></label>'+
+    (p.num?'<input type="number" step="any" min="0" inputmode="decimal" data-rval="'+p.id+'" value="'+c.val+'" style="width:76px" aria-label="'+esc(p.name)+'"><span class="m" style="width:14px">'+p.unit+'</span>':'')+'</div>'}).join('')+
+  '<h4 class="hint" style="margin:8px 0 0;letter-spacing:.08em">YOUR OWN RULES (TICK EACH DAY)</h4>'+
+  cfg.custom.map(function(c){return '<div class="ci"><span class="lab">'+esc(c.text)+'</span><button class="btn ghost sm danger" type="button" data-rdel="'+esc(c.id)+'">Remove</button></div>'}).join('')+
+  '<div class="filters"><input type="text" id="pNew" placeholder="e.g. Start my day by 09:30" style="flex:1;min-width:180px;font-family:var(--sans)"><button class="btn ghost" type="button" id="pAdd">Add rule</button></div>'+
+  '<div class="filters"><button class="btn" type="button" id="pSave">Save rules</button><span class="msg" id="pMsg"></span></div></div></details></section>';
+}
+function readEditor(){
+  var cfg=pcfg(),out={rules:{},custom:cfg.custom.slice(),_stamp:Date.now()};
+  PRULES.forEach(function(p){var on=document.querySelector('[data-ron="'+p.id+'"]'),v=document.querySelector('[data-rval="'+p.id+'"]');
+    out.rules[p.id]={on:on?on.checked:cfg.rules[p.id].on,val:v&&v.value!==''&&!isNaN(+v.value)?Math.max(0,+v.value):cfg.rules[p.id].val}});
+  return out;
+}
+$('view').addEventListener('toggle',function(ev){if(ev.target.id==='pEdit'){S.pEditOpen=ev.target.open;var b=ev.target.querySelector('summary .btn');if(b)b.textContent=S.pEditOpen?'Close':'Open'}},true);
+$('view').addEventListener('click',function(ev){
+  var t=ev.target;
+  var pr=t.closest('[data-pr]');if(pr){S.prange=pr.getAttribute('data-pr');render();return}
+  var m=t.closest('[data-man]');if(m){var id=m.getAttribute('data-man'),k=dayKey(new Date()),e=clone(S.days[k]||{date:k,plan:'',review:'',mood:''});e.manual=e.manual||{};e.manual[id]=!e.manual[id];e._stamp=Date.now();putDay(k,e);return}
+  if(t.id==='pAdd'){var txt=($('pNew').value||'').trim();if(!txt){$('pNew').focus();return}var o=readEditor();o.custom.push({id:Date.now().toString(36),text:txt.slice(0,80)});putDay(PCFG_ID,o);return}
+  var del=t.closest('[data-rdel]');if(del){var o2=readEditor();o2.custom=o2.custom.filter(function(c){return c.id!==del.getAttribute('data-rdel')});putDay(PCFG_ID,o2);return}
+  if(t.id==='pSave'){putDay(PCFG_ID,readEditor());var pm=$('pMsg');if(pm)pm.textContent='Saved.';return}
+});
+
+var VIEWS={dashboard:vDashboard,trades:vTrades,calendar:vCalendar,progress:vProgress,playbook:vPlaybook,journal:vJournal,settings:vSettings};
 function route(){var h=(location.hash||'').replace('#','');return VIEWS[h]?h:'dashboard'}
 function render(){
   var r=route();
@@ -530,6 +699,7 @@ function render(){
   if(!S.loaded&&!S.trades.length){$('view').innerHTML='<div class="empty">Loading your journal…</div>';return}
   var fq=document.activeElement&&document.activeElement.id==='fQ',pos=fq?document.activeElement.selectionStart:0;
   $('view').innerHTML=VIEWS[r]();
+  var hm=document.querySelector('.heatwrap');if(hm)hm.scrollLeft=hm.scrollWidth;
   if(fq&&$('fQ')){$('fQ').focus();try{$('fQ').setSelectionRange(pos,pos)}catch(e){}}
 }
 
@@ -587,14 +757,14 @@ function drawer(){
 }
 function dUpdate(){
   if(!D)return; var t=D.t,g=grade(t),want=t.dir==='Long'?'Bullish':'Bearish';
-  $('d_gb').innerHTML='<span class="hint">'+(g.rr?'Planned R:R 1:'+g.rr.toFixed(2):'Add entry, stop and target')+'</span><b class="gr '+gClass(g.grade)+'">'+g.score+'% '+esc(g.grade)+'</b>';
+  $('d_gb').innerHTML='<span class="hint">'+g.mode+' · '+(g.rr?'R:R 1:'+g.rr.toFixed(2):'add entry, stop and target')+'</span><b class="gr '+gClass(g.grade)+'">'+g.score+'% '+esc(g.grade)+'</b>';
   $('row_s15').hidden=(t.model==='1H');
   ['s4h','s1h','s15'].forEach(function(k){Array.prototype.forEach.call($('d_'+k).querySelectorAll('button'),function(b){var v=b.getAttribute('data-v');b.className=v===want?'ok':'no';b.setAttribute('aria-pressed',t[k]===v?'true':'false')})});
   $('d_chk').innerHTML=g.rows.map(function(x){
     if(x.head)return '<h4>'+esc(x.head)+'</h4>';
-    var cls='ci '+(x.ok?'on':'off')+(x.key?'':' auto'),inner='<span class="box" aria-hidden="true">'+(x.ok?'✓':(x.key?'':'×'))+'</span><span class="lab">'+esc(x.label)+'</span>'+(x.key?'':'<span class="tag">AUTO</span>')+'<span class="pts">'+(x.ok?'+'+x.pts:'0/'+x.pts)+'</span>';
+    var cls='ci '+(x.flag?(x.ok?'flagon':'off'):(x.ok?'on':'off'))+(x.key?'':' auto'),inner='<span class="box" aria-hidden="true">'+(x.flag?(x.ok?'!':''):(x.ok?'✓':(x.key?'':'×')))+'</span><span class="lab">'+esc(x.label)+'</span>'+(x.key?'':'<span class="tag">AUTO</span>')+'<span class="pts">'+(x.flag?(x.ok?'rule break':''):x.pts?(x.ok?'+'+x.pts:'0/'+x.pts):'')+'</span>';
     return x.key?'<button type="button" class="'+cls+'" data-k="'+x.key+'" aria-pressed="'+x.ok+'">'+inner+'</button>':'<div class="'+cls+'">'+inner+'</div>'}).join('');
-  $('d_verdict').innerHTML=g.brk?'<div class="verdict bad">Rule break: '+esc(g.brk)+'</div>':'<div class="verdict ok">Within plan'+(g.grade==='NO TRADE'?', but the score is under 70%':'')+'</div>';
+  $('d_verdict').innerHTML=g.brk?'<div class="verdict bad">Rule break: '+esc(g.brk)+'</div>':'<div class="verdict ok">Within plan'+(g.grade==='NO TRADE'?', but the score is under 70%':'')+'</div>'+(g.mode==='Impulsive'?'<div class="hint" style="margin-top:6px">4H is against this trade, so it is graded as an Impulsive reversal, like the indicator does.</div>':'');
   var d=derive(t);
   $('d_rline').innerHTML='Result: <span class="num '+vClass(d.r)+'">'+(d.r==null?'add exit price and planned stop for R':fmtV(d.r,'R'))+'</span>'+(d.pnl!=null?' · <span class="num '+vClass(d.pnl)+'">'+fmtV(d.pnl,'$')+'</span>':'');
 }
@@ -643,14 +813,17 @@ function openDay(k){
     '<div class="sec"><h3>Mindset</h3><div class="chips" id="j_mood">'+['Calm','Focused','Tired','Impatient','Frustrated','Confident'].map(function(x){return '<button type="button" data-v="'+x+'" aria-pressed="'+(E.mood===x)+'">'+x+'</button>'}).join('')+'</div></div>'+
     '<label class="f" for="j_plan">Plan before the session<textarea id="j_plan" placeholder="Bias on each market, levels I am watching, which session">'+esc(E.plan)+'</textarea></label>'+
     '<label class="f" for="j_review">Review after the session<textarea id="j_review" placeholder="Did I wait for confirmation? What would I do the same or differently?">'+esc(E.review)+'</textarea></label>'+
+    (pcfg().custom.length?'<div class="sec"><h3>Your daily rules</h3><div class="chk" id="j_man">'+pcfg().custom.map(function(c){var on=!!(E.manual&&E.manual[c.id]);return '<button type="button" class="ci '+(on?'on':'off')+'" data-mid="'+esc(c.id)+'" aria-pressed="'+on+'"><span class="box" aria-hidden="true">'+(on?'✓':'')+'</span><span class="lab">'+esc(c.text)+'</span></button>'}).join('')+'</div></div>':'')+
     '<div class="sec"><h3>Trades this day</h3>'+(list.length?tradeTable(list,true):'<div class="hint">No trades closed this day.</div>')+'</div><div class="msg" id="dMsg" aria-live="polite"></div></div></aside>';
   document.body.style.overflow='hidden';
   $('scrim').onclick=closeDrawer;$('dClose').onclick=closeDrawer;
   $('j_mood').onclick=function(ev){var b=ev.target.closest('button');if(!b)return;E.mood=E.mood===b.getAttribute('data-v')?'':b.getAttribute('data-v');Array.prototype.forEach.call(this.querySelectorAll('button'),function(x){x.setAttribute('aria-pressed',x.getAttribute('data-v')===E.mood?'true':'false')})};
   $('j_plan').oninput=function(){E.plan=this.value};$('j_review').oninput=function(){E.review=this.value};
+  if($('j_man'))$('j_man').onclick=function(ev){var b=ev.target.closest('[data-mid]');if(!b)return;var id=b.getAttribute('data-mid');E.manual=E.manual||{};E.manual[id]=!E.manual[id];b.className='ci '+(E.manual[id]?'on':'off');b.setAttribute('aria-pressed',E.manual[id]?'true':'false');b.querySelector('.box').textContent=E.manual[id]?'✓':''};
   $('jSave').onclick=function(){
-    var doc={date:k,plan:E.plan,review:E.review,mood:E.mood,_stamp:Date.now()};
-    putDay(k,(!doc.plan&&!doc.review&&!doc.mood)?null:doc);closeDrawer();
+    var man={};Object.keys(E.manual||{}).forEach(function(id){if(E.manual[id])man[id]=true});
+    var doc={date:k,plan:E.plan,review:E.review,mood:E.mood,manual:man,_stamp:Date.now()};
+    putDay(k,(!doc.plan&&!doc.review&&!doc.mood&&!Object.keys(man).length)?null:doc);closeDrawer();
   };
   $('drawerBox').querySelector('.tbl')&&$('drawerBox').querySelector('.tbl').addEventListener('click',function(ev){var r=ev.target.closest('[data-open]');if(r){var id=r.getAttribute('data-open');openTrade(id)}});
   setTimeout(function(){$('j_plan').focus()},30);
@@ -875,7 +1048,7 @@ function vSettings(){
   }
   return '<section class="panel"><h2>Account and sync</h2>'+acct+'<div class="msg" id="setMsg" aria-live="polite">'+esc(Store.formMsg||'')+'</div></section>'+mt5Card(cfg)+
   '<section class="panel"><h2>Your data</h2><div class="filters"><button class="btn ghost" type="button" data-act="import">Import MT5 report</button><button class="btn ghost" type="button" id="bkOut">Download backup</button><button class="btn ghost" type="button" id="bkInBtn">Restore backup</button><input type="file" id="bkIn" accept=".json,application/json" hidden></div>'+
-    '<p class="hint" style="margin:0">'+plural(realTrades().length,'trade')+' and '+plural(Object.keys(S.days).length,'journal day')+' saved. Download a backup now and then, even with sync on.</p></section>'+
+    '<p class="hint" style="margin:0">'+plural(realTrades().length,'trade')+' and '+plural(Object.keys(S.days).filter(isDayKey).length,'journal day')+' saved. Download a backup now and then, even with sync on.</p></section>'+
   '<section class="panel"><h2>Put it on your home screen</h2><p style="margin:0">iPhone: open this page in Safari, tap Share, then <b>Add to Home Screen</b>.<br>Android: open it in Chrome, tap the ⋮ menu, then <b>Install app</b>.</p></section>';
 }
 /* ---------------- MT5 sync code ---------------- */
