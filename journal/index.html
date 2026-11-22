@@ -151,7 +151,11 @@ tbody tr.click:hover td{background:rgba(255,255,255,.025)}
 .cal .wkc b{font-size:16px}
 .cal .d.note{box-shadow:inset 0 2px 0 var(--accent)}
 .cal .wk{font-size:11px}
-@media (max-width:560px){.cal{gap:3px}.cal .d{min-height:54px;padding:4px}.cal .d b{font-size:11px}.cal .d small{display:none}}
+.wks{display:none}
+@media (max-width:560px){.cal{gap:3px}.cal .d{min-height:56px;padding:4px 3px;overflow:hidden}
+  .cal .d b,.cal .d.win b,.cal .d.loss b,.cal .d.be b,.cal .wkc b{font-size:11px;letter-spacing:-.03em;white-space:nowrap}
+  .cal .d small{display:none}.cal .d .n{font-size:10px}.wkw{display:none}.wks{display:inline}
+  .cal .dh{font-size:9px;letter-spacing:.02em}}
 
 /* playbook */
 .rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
@@ -238,7 +242,7 @@ input.masked{-webkit-text-security:disc;color:var(--mute)}
       <div class="seg" id="unitSeg" aria-label="Show results in"><button type="button" data-u="R" aria-pressed="true">R</button><button type="button" data-u="$" aria-pressed="false">$</button><button type="button" data-u="%" aria-pressed="false">%</button></div>
       <button class="btn ghost" type="button" id="importBtn">Import MT5</button>
       <button class="btn" type="button" id="addBtn">+ Trade</button>
-      <a class="btn ghost" href="#settings" id="setBtn" aria-label="Settings" title="Settings">⚙</a>
+      <a class="btn ghost" href="#settings" id="setBtn" aria-label="Settings" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></a>
       <input type="file" id="importFile" accept=".html,.htm,.csv,.txt" hidden>
     </div>
     <nav class="tabs" id="tabs">
@@ -368,6 +372,9 @@ function fmtV(v,unit,sign){
   if(unit==='%')return sg+a.toFixed(2)+'%';
   return unit==='R'?sg+a.toFixed(2)+'R':sg+'$'+a.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 }
+function fmtS(v){if(v==null||isNaN(v))return'-';var sg=v>0?'+':v<0?'−':'',a=Math.abs(v);
+  if(S.unit==='$')return sg+'$'+(a>=1000?(a/1000).toFixed(a>=10000?0:1)+'k':Math.round(a));
+  var t=a>=10?a.toFixed(0):a.toFixed(1);return sg+t+(S.unit==='%'?'%':'R')}
 function fmtAx(v){var a=Math.abs(v),s=v<0?'−':'';if(S.unit==='%')return s+(a%1?a.toFixed(1):a.toFixed(0))+'%';return S.unit==='R'?s+(a%1?a.toFixed(1):a.toFixed(0))+'R':s+'$'+a.toLocaleString(undefined,{maximumFractionDigits:0})}
 function vClass(v){return v==null?'m':v>0?'g':v<0?'b':'w'}
 
@@ -566,9 +573,9 @@ function vCalendar(){
     var wkKeys=[];
     for(var i=0;i<7;i++){var d=new Date(start);d.setDate(start.getDate()+w*7+i);var k=dayKey(d),inM=d.getMonth()===m.m,v=days[k],note=S.days[k];wkKeys.push(k);
       if(inM&&v!=null){monthNet+=v;mDays++;if(v>0)gDays++}
-      cells+='<button type="button" class="d'+(inM?'':' out')+(inM&&v!=null?(v>0?' win':v<0?' loss':' be'):'')+(inM&&note?' note':'')+'" '+(inM?'data-day="'+k+'"':'disabled tabindex="-1"')+'><span class="n">'+d.getDate()+'</span>'+(inM&&v!=null?'<b class="'+vClass(v)+'">'+fmtV(v)+'</b><small>'+cnt[k]+' trade'+(cnt[k]>1?'s':'')+'</small><small class="wr">'+Math.round((wins[k]||0)/cnt[k]*100)+'% win</small>':'')+'</button>'}
+      cells+='<button type="button" class="d'+(inM?'':' out')+(inM&&v!=null?(v>0?' win':v<0?' loss':' be'):'')+(inM&&note?' note':'')+'" '+(inM?'data-day="'+k+'"':'disabled tabindex="-1"')+'><span class="n">'+d.getDate()+'</span>'+(inM&&v!=null?'<b class="'+vClass(v)+'">'+fmtS(v)+'</b><small>'+cnt[k]+' trade'+(cnt[k]>1?'s':'')+'</small><small class="wr">'+Math.round((wins[k]||0)/cnt[k]*100)+'% win</small>':'')+'</button>'}
     var ws=weekStats(wkKeys[0],wkKeys[6],list);weeks.push({n:w+1,from:wkKeys[0],to:wkKeys[6],st:ws});
-    cells+='<a class="d wkc" href="#wk-'+(w+1)+'"><span class="n">Week '+(w+1)+'</span>'+(ws.st.closed?'<b class="'+vClass(ws.st.net)+'">'+fmtV(ws.st.net)+'</b><small>'+ws.tdays+' day'+(ws.tdays===1?'':'s')+'</small>':'<small>No trades</small>')+'</a>'}
+    cells+='<a class="d wkc" href="#wk-'+(w+1)+'"><span class="n"><span class="wkw">Week </span><span class="wks">W</span>'+(w+1)+'</span>'+(ws.st.closed?'<b class="'+vClass(ws.st.net)+'">'+fmtS(ws.st.net)+'</b><small>'+ws.tdays+' day'+(ws.tdays===1?'':'s')+'</small>':'<small>No trades</small>')+'</a>'}
   return '<section class="panel"><div class="ph"><div class="filters"><button class="btn ghost sm" type="button" id="mPrev" aria-label="Previous month">←</button><h2 style="font-size:15px;color:var(--text);text-transform:none;letter-spacing:0">'+MONTHS[m.m]+' '+m.y+'</h2><button class="btn ghost sm" type="button" id="mNext" aria-label="Next month">→</button></div>'+
     '<span class="hint">Monthly stats: <span class="num '+vClass(monthNet)+'">'+fmtV(mDays?monthNet:null)+'</span> · '+mDays+' day'+(mDays===1?'':'s')+' traded · '+gDays+' green</span></div>'+
     '<div class="cal cal8">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat','Week'].map(function(x){return '<div class="dh">'+x+'</div>'}).join('')+cells+'</div>'+
