@@ -17,8 +17,8 @@
 :root{
   --bg:#10131a; --panel:#181d27; --inset:#131720; --line:#272e3b; --line2:#333b4a;
   --text:#e6e8ec; --mute:#8b93a3; --faint:#5d6576; --accent:#5b9dff;
-  --good:#2fcf8a; --bad:#ff5d6c; --warn:#f0b445; --gold:#ffc42e;
-  --good-bg:rgba(47,207,138,.12); --bad-bg:rgba(255,93,108,.12); --warn-bg:rgba(240,180,69,.12); --acc-bg:rgba(91,157,255,.14);
+  --good:#22e08a; --bad:#ff4d5e; --warn:#ffb83d; --gold:#ffc42e;
+  --good-bg:rgba(34,224,138,.2); --bad-bg:rgba(255,77,94,.2); --warn-bg:rgba(255,184,61,.2); --acc-bg:rgba(91,157,255,.22);
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   color-scheme:dark;
@@ -80,8 +80,11 @@ label.f input,label.f select{width:100%}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
 .kpi span{font-size:12px;color:var(--mute)}
-.kpi b{font-family:var(--mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
-.kpi small{font-size:11px;color:var(--faint)}
+.kpi b{font-family:var(--mono);font-size:24px;font-weight:500;font-variant-numeric:tabular-nums}
+.kpi small{font-size:11px;color:var(--mute)}
+.kpi:has(b.g){border-color:rgba(34,224,138,.45);background:linear-gradient(180deg,rgba(34,224,138,.10),var(--panel) 60%)}
+.kpi:has(b.b){border-color:rgba(255,77,94,.45);background:linear-gradient(180deg,rgba(255,77,94,.10),var(--panel) 60%)}
+.kpi:has(b.w){border-color:rgba(255,184,61,.4);background:linear-gradient(180deg,rgba(255,184,61,.08),var(--panel) 60%)}
 .bar2{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--inset)}
 .bar2 i{display:block;height:100%}
 
@@ -107,20 +110,20 @@ td.r,th.r{text-align:right}
 tbody tr.click{cursor:pointer}
 tbody tr.click:hover td{background:rgba(255,255,255,.025)}
 .pill{display:inline-block;font-size:11px;font-weight:600;border-radius:99px;padding:2px 8px;border:1px solid var(--line2);color:var(--mute);font-family:var(--sans)}
-.pill.win{color:var(--good);border-color:rgba(47,207,138,.45);background:var(--good-bg)}
-.pill.loss{color:var(--bad);border-color:rgba(255,93,108,.45);background:var(--bad-bg)}
-.pill.be{color:var(--warn);border-color:rgba(240,180,69,.45);background:var(--warn-bg)}
-.pill.open{color:var(--accent);border-color:rgba(91,157,255,.45)}
+.pill.win{color:#fff;border-color:#22e08a;background:#0f6b45}
+.pill.loss{color:#fff;border-color:#ff4d5e;background:#8a2230}
+.pill.be{color:#fff;border-color:#5b9dff;background:#24407e}
+.pill.open{color:#fff;border-color:#5b9dff;background:#1d3566}
 .gr{font-family:var(--mono);font-weight:600}
-.gr.A{color:var(--good)} .gr.B,.gr.C{color:var(--warn)} .gr.N{color:var(--bad)} .gr.U{color:var(--faint);font-weight:400}
-.pill.setup.Normal{color:var(--accent);border-color:rgba(91,157,255,.45);background:var(--acc-bg)}
-.pill.setup.Impulsive{color:var(--gold);border-color:rgba(255,196,46,.45);background:rgba(255,196,46,.1)}
+.gr.A{color:var(--good);text-shadow:0 0 12px rgba(34,224,138,.35)} .gr.B,.gr.C{color:var(--warn)} .gr.N{color:var(--bad)} .gr.U{color:var(--faint);font-weight:400}
+.pill.setup.Normal{color:#fff;border-color:#5b9dff;background:#2a4f9a}
+.pill.setup.Impulsive{color:#1a1300;border-color:#ffc42e;background:#ffc42e}
 .side{font-weight:600}.side.Long{color:var(--good)}.side.Short{color:var(--bad)}
 
 /* breakdown list */
 .blist{display:flex;flex-direction:column;gap:8px}
 .bl{display:grid;grid-template-columns:90px minmax(0,1fr) 70px 64px;gap:10px;align-items:center;font-size:13px}
-.bl .track{height:8px;background:var(--inset);border-radius:4px;position:relative;overflow:hidden}
+.bl .track{height:12px;background:var(--inset);border-radius:4px;position:relative;overflow:hidden}
 .bl .track i{position:absolute;top:0;bottom:0;border-radius:4px}
 .bl .track .mid{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--line2)}
 
@@ -186,8 +189,8 @@ button.ci{cursor:pointer}
 .gradebar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:9px;border:1px solid var(--line2);background:var(--inset)}
 .gradebar b{font-family:var(--mono);font-size:22px}
 .verdict{border-radius:8px;padding:8px 10px;font-weight:600;font-size:13px;border:1px solid}
-.verdict.ok{color:var(--good);border-color:rgba(47,207,138,.4);background:var(--good-bg)}
-.verdict.bad{color:var(--bad);border-color:rgba(255,93,108,.45);background:var(--bad-bg)}
+.verdict.ok{color:#fff;border-color:#22e08a;background:#0f6b45}
+.verdict.bad{color:#fff;border-color:#ff4d5e;background:#8a2230}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chips button{background:var(--inset);border:1px solid var(--line2);border-radius:99px;padding:4px 10px;font-size:12px;color:var(--mute);cursor:pointer}
 .chips button[aria-pressed=true]{color:var(--text);border-color:var(--accent);background:var(--acc-bg)}
@@ -422,7 +425,7 @@ function radar(ax){
     labels+='<text x="'+lx.toFixed(1)+'" y="'+(ly+3).toFixed(1)+'" text-anchor="'+anc+'">'+esc(x.k)+'</text>';
     pts.push((cx+Math.cos(a)*R*x.v/100).toFixed(1)+','+(cy+Math.sin(a)*R*x.v/100).toFixed(1))});
   return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="RHL score breakdown">'+grid+spokes+
-    '<polygon points="'+pts.join(' ')+'" fill="rgba(91,157,255,.22)" stroke="var(--accent)" stroke-width="2"/>'+
+    '<polygon points="'+pts.join(' ')+'" fill="rgba(91,157,255,.35)" stroke="var(--accent)" stroke-width="2.5"/>'+
     pts.map(function(p){var q=p.split(',');return '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="3" fill="var(--accent)"/>'}).join('')+labels+'</svg>';
 }
 function niceTicks(min,max,count){
@@ -445,7 +448,7 @@ function lineChart(seq){
   var last=pts[pts.length-1],col=last.y>=0?'var(--good)':'var(--bad)';
   var xl='<text x="'+L+'" y="'+(H-8)+'">Trade 1</text><text x="'+(W-Rr)+'" y="'+(H-8)+'" text-anchor="end">Trade '+n+'</text>';
   return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Cumulative result">'+grid+
-    '<path d="'+area+'" fill="'+(last.y>=0?'rgba(47,207,138,.12)':'rgba(255,93,108,.12)')+'"/><path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="2"/>'+
+    '<path d="'+area+'" fill="'+(last.y>=0?'rgba(34,224,138,.26)':'rgba(255,77,94,.26)')+'"/><path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="2.5"/>'+
     '<circle cx="'+X(n).toFixed(1)+'" cy="'+Y(last.y).toFixed(1)+'" r="4" fill="'+col+'"/>'+xl+'</svg>';
 }
 function barChart(days,keys){
@@ -494,7 +497,7 @@ function vDashboard(){
     kpi('Win rate',pct(st.wr),'',st.wins+'W · '+st.be+'BE · '+st.losses+'L',wlBar)+
     kpi('Profit factor',ratio(st.pf),st.pf!=null&&st.pf>=1?'g':st.pf!=null?'b':'','Gross win ÷ gross loss')+
     kpi('Avg win / loss',ratio(st.wl),'',fmtV(st.avgW,null,false)+' vs '+fmtV(st.avgL,null,false))+
-    kpi('Plan adherence',pct(st.adherence),st.adherence!=null&&st.adherence>=.9?'g':st.adherence!=null&&st.adherence<.7?'b':'w',st.planned?st.planned+' trades marked':'Grade trades to track')+
+    kpi('Plan adherence',pct(st.adherence),st.adherence==null?'':st.adherence>=.9?'g':st.adherence<.7?'b':'w',st.planned?st.planned+' trades marked':'Grade trades to track')+
     kpi('Avg grade score',st.avgScore==null?'-':Math.round(st.avgScore)+'%','',st.graded+' graded')+
   '</div>'+
   '<div class="grid-dash">'+
