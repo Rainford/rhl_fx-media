@@ -1,5 +1,5 @@
 // RHL Journal offline cache. Bump the version when shipping a new build.
-const CACHE = 'rhlj-v3';
+const CACHE = 'rhlj-v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

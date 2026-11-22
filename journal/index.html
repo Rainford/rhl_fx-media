@@ -54,6 +54,8 @@ button{font:inherit;color:inherit}
 .seg button{background:none;border:0;color:var(--mute);font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer}
 .seg button[aria-pressed=true]{background:var(--line2);color:var(--text);font-weight:600}
 .seg.wide{display:flex}.seg.wide button{flex:1}
+.seg button.sN[aria-pressed=true]{background:var(--acc-bg);color:var(--accent)}
+.seg button.sI[aria-pressed=true]{background:rgba(255,196,46,.12);color:var(--gold)}
 .seg button.ok[aria-pressed=true]{background:var(--good-bg);color:var(--good)}
 .seg button.no[aria-pressed=true]{background:var(--bad-bg);color:var(--bad)}
 
@@ -110,6 +112,8 @@ tbody tr.click:hover td{background:rgba(255,255,255,.025)}
 .pill.open{color:var(--accent);border-color:rgba(91,157,255,.45)}
 .gr{font-family:var(--mono);font-weight:600}
 .gr.A{color:var(--good)} .gr.B,.gr.C{color:var(--warn)} .gr.N{color:var(--bad)} .gr.U{color:var(--faint);font-weight:400}
+.pill.setup.Normal{color:var(--accent);border-color:rgba(91,157,255,.45);background:var(--acc-bg)}
+.pill.setup.Impulsive{color:var(--gold);border-color:rgba(255,196,46,.45);background:rgba(255,196,46,.1)}
 .side{font-weight:600}.side.Long{color:var(--good)}.side.Short{color:var(--bad)}
 
 /* breakdown list */
@@ -240,7 +244,7 @@ var MONTHS=['January','February','March','April','May','June','July','August','S
 
 /* ---------------- state ---------------- */
 var S={trades:[],days:{},live:false,demo:true,loaded:false,unit:lsGet('rhlj_unit')||'R',range:lsGet('rhlj_range')||'all',sym:'all',
-  tf:{sym:'all',res:'all',plan:'all',q:''},month:null,db:null,assets:null,canWrite:true,err:''};
+  tf:{sym:'all',res:'all',plan:'all',setup:'all',q:''},month:null,db:null,assets:null,canWrite:true,err:''};
 var MARKETS=['US30','JP225','USOIL','USTEC','XAUUSD'];
 var MISTAKES=['Outside the plan','Entered early','Moved stop','Closed early','Chased entry','Revenge trade','Oversized','No session'];
 var TAGS=['A+ setup','News','Asia','London','New York','Sweep','Clean break'];
@@ -305,6 +309,8 @@ function grade(t){
   var g=brk?'NO TRADE':score>=100?'A+':score>=90?'A':score>=80?'B':score>=70?'C':'NO TRADE';
   return{rows:rows,score:score,grade:g,rr:rr,brk:brk,sess:sess,mode:imp?'Impulsive':'Normal'};
 }
+function setupOf(t){if(!t.s4h)return '';return t.s4h===(t.dir==='Long'?'Bullish':'Bearish')?'Normal':'Impulsive'}
+function setupPill(x){return x?'<span class="pill setup '+x+'">'+x+'</span>':'<span class="m">-</span>'}
 function gClass(g){return !g?'U':g==='NO TRADE'?'N':g.charAt(0)==='A'?'A':g==='B'?'B':'C'}
 
 /* ---------------- derived trade numbers ---------------- */
@@ -320,6 +326,7 @@ function derive(t){
   d.g=t.graded?grade(t):null;
   d.plan=t.plan||(d.g?(d.g.grade==='NO TRADE'?'No':'Yes'):'');
   d.sess=sessionOf(t.open).key;
+  d.setup=setupOf(t);
   d.day=dayKey(t.close||t.open);
   return d;
 }
@@ -476,7 +483,7 @@ function vDashboard(){
   '</div>'+
   '<div class="grid2">'+
     '<section class="panel"><h2>By market</h2>'+breakdown(list,function(t){return t.symbol})+'<h2>By session</h2>'+breakdown(list,function(t){return t._d.sess},['Asia','London','New York','Outside'])+'</section>'+
-    '<section class="panel"><h2>By grade</h2>'+breakdown(list,function(t){return t._d.g?t._d.g.grade:'Ungraded'},['A+','A','B','C','NO TRADE','Ungraded'])+'<h2>By model</h2>'+breakdown(list,function(t){return t.model||'15M'},['15M','1H'])+
+    '<section class="panel"><h2>By grade</h2>'+breakdown(list,function(t){return t._d.g?t._d.g.grade:'Ungraded'},['A+','A','B','C','NO TRADE','Ungraded'])+'<h2>By setup</h2>'+breakdown(list,function(t){return t._d.setup||'Not set'},['Normal','Impulsive','Not set'])+'<h2>By model</h2>'+breakdown(list,function(t){return t.model||'15M'},['15M','1H'])+
       '<p class="hint" style="margin:0">If A+ and A beat B, C and NO TRADE here, the grader is doing its job.</p></section>'+
   '</div>'+
   '<section class="panel"><div class="ph"><h2>Recent trades</h2><a class="btn ghost sm" href="#trades">All trades</a></div>'+tradeTable(recent,true)+'</section>';
@@ -485,10 +492,10 @@ function uniq(a){var o={},r=[];a.forEach(function(x){if(x&&!o[x]){o[x]=1;r.push(
 
 function tradeTable(list,compact){
   if(!list.length)return '<div class="empty">No trades match. Add one with <b>+ Trade</b> or import your MT5 report.</div>';
-  return '<div class="tbl"><table><thead><tr><th>Date</th><th>Market</th><th>Side</th>'+(compact?'':'<th>Model</th><th>Session</th>')+'<th>Status</th><th>Grade</th>'+(compact?'':'<th>Plan</th><th class="r">Planned R:R</th>')+'<th class="r">Result</th></tr></thead><tbody>'+
+  return '<div class="tbl"><table><thead><tr><th>Date</th><th>Market</th><th>Side</th>'+'<th>Setup</th>'+(compact?'':'<th>Model</th><th>Session</th>')+'<th>Status</th><th>Grade</th>'+(compact?'':'<th>Plan</th><th class="r">Planned R:R</th>')+'<th class="r">Result</th></tr></thead><tbody>'+
   list.map(function(t){var d=t._d,v=val(t),g=d.g;
     return '<tr class="click" data-open="'+esc(t.id)+'" tabindex="0"><td>'+fmtDate(t.close||t.open,!compact)+'</td><td><b>'+esc(t.symbol)+'</b></td><td><span class="side '+esc(t.dir)+'">'+esc(t.dir)+'</span></td>'+
-    (compact?'':'<td>'+esc(t.model||'15M')+'</td><td>'+esc(d.sess)+'</td>')+
+    '<td>'+setupPill(d.setup)+'</td>'+(compact?'':'<td>'+esc(t.model||'15M')+'</td><td>'+esc(d.sess)+'</td>')+
     '<td><span class="pill '+d.res+'">'+({win:'Win',loss:'Loss',be:'Break-even',open:'Open'})[d.res]+'</span></td>'+
     '<td><span class="gr '+gClass(g&&g.grade)+'">'+(g?esc(g.grade)+' <span class="m" style="font-weight:400">'+g.score+'%</span>':'Not graded')+'</span></td>'+
     (compact?'':'<td>'+(d.plan==='Yes'?'<span class="g">Yes</span>':d.plan==='No'?'<span class="b">No</span>':'<span class="m">-</span>')+'</td><td class="r num">'+(g&&g.rr?'1:'+g.rr.toFixed(1):'-')+'</td>')+
@@ -501,6 +508,7 @@ function vTrades(){
     if(f.sym!=='all'&&t.symbol!==f.sym)return false;
     if(f.res!=='all'&&(f.res==='ungraded'?t._d.g:t._d.res!==f.res))return false;
     if(f.plan!=='all'&&t._d.plan!==f.plan)return false;
+    if(f.setup&&f.setup!=='all'&&t._d.setup!==f.setup)return false;
     if(f.q){var q=f.q.toLowerCase();if(((t.notes||'')+' '+(t.tags||[]).join(' ')+' '+(t.mistakes||[]).join(' ')+' '+t.symbol).toLowerCase().indexOf(q)<0)return false}
     return true}).sort(function(a,b){return new Date(b.close||b.open)-new Date(a.close||a.open)});
   var st=stats(list);
@@ -508,7 +516,7 @@ function vTrades(){
     '<div class="filters">'+
       '<select id="fSym" aria-label="Market"><option value="all">All markets</option>'+syms.map(function(s){return '<option'+(f.sym===s?' selected':'')+'>'+esc(s)+'</option>'}).join('')+'</select>'+
       '<select id="fRes" aria-label="Status">'+[['all','All results'],['win','Wins'],['loss','Losses'],['be','Break-even'],['open','Open'],['ungraded','Not graded']].map(function(o){return '<option value="'+o[0]+'"'+(f.res===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select>'+
-      '<select id="fPlan" aria-label="Plan">'+[['all','In or out of plan'],['Yes','In plan'],['No','Outside plan']].map(function(o){return '<option value="'+o[0]+'"'+(f.plan===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select>'+
+      '<select id="fSetup" aria-label="Setup">'+[['all','Normal and Impulsive'],['Normal','Normal only'],['Impulsive','Impulsive only']].map(function(o){return '<option value="'+o[0]+'"'+((f.setup||'all')===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select>'+'<select id="fPlan" aria-label="Plan">'+[['all','In or out of plan'],['Yes','In plan'],['No','Outside plan']].map(function(o){return '<option value="'+o[0]+'"'+(f.plan===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select>'+
       '<input type="text" id="fQ" placeholder="Search notes, tags, mistakes" value="'+esc(f.q)+'" style="flex:1;min-width:160px">'+
     '</div>'+tradeTable(list,false)+'</section>';
 }
@@ -538,7 +546,12 @@ function vPlaybook(){
   function card(title,st){return '<div class="rule"><h3>'+title+'</h3><div class="filters"><span class="pill">'+st.closed+' closed</span><span class="pill">Win '+pct(st.wr)+'</span><span class="pill">PF '+ratio(st.pf)+'</span></div><b class="num '+vClass(st.net)+'" style="font-size:20px">'+fmtV(st.closed?st.net:null)+'</b></div>'}
   var mist={};list.forEach(function(t){(t.mistakes||[]).forEach(function(x){(mist[x]=mist[x]||[]).push(t)})});
   var mk=Object.keys(mist).sort(function(a,b){return mist[b].length-mist[a].length});
-  return '<section class="panel"><h2>The RHL_FX model</h2><div class="rules">'+
+  var sN=stats(list.filter(function(t){return t._d.setup==='Normal'})),sI=stats(list.filter(function(t){return t._d.setup==='Impulsive'}));
+  return '<section class="panel"><h2>Two setups</h2><div class="grid2" style="gap:10px">'+
+    '<div class="rule" style="border-color:rgba(91,157,255,.45)"><h3 style="color:var(--accent)">NORMAL · with the 4H bias</h3><ul><li>4H, 1H (and 15M) bias all agree</li><li>RHL_FX signal, 1H break, retest of broken liquidity</li><li>Protected high/low holds</li><li>Entry on the 15M/1H break with the bias</li><li>Target the 4H swing. Bonus: 1:3+, EMA/cloud agree, target at 4H swing, rejection candle</li></ul></div>'+
+    '<div class="rule" style="border-color:rgba(255,196,46,.45)"><h3 style="color:var(--gold)">IMPULSIVE · against the 4H bias</h3><ul><li>4H not graded; 1H bias required (or shifting: 2+ HL for a BUY, 2+ LH for a SELL)</li><li>Retest must stay on the right side of the EMA</li><li>Entry on a rejection candle in the zone, no entry break needed</li><li>No trade in a ranging market</li><li>R:R not graded, no bonus</li></ul></div>'+
+  '</div><div class="rules">'+card('NORMAL SETUP',sN)+card('IMPULSIVE SETUP',sI)+'</div></section>'+
+  '<section class="panel"><h2>The RHL_FX model</h2><div class="rules">'+
     '<div class="rule"><h3 class="b">1 · INDICATION</h3><ul><li>Impulse breaks structure</li><li>RHL_FX prints the BUY or SELL</li><li>1H break with the higher-timeframe bias</li></ul></div>'+
     '<div class="rule"><h3 class="w">2 · CORRECTION</h3><ul><li>Pullback to the retest zone at the broken level</li><li>Protected high or low holds</li><li>No second signal needed</li></ul></div>'+
     '<div class="rule"><h3 class="g">3 · CONTINUATION</h3><ul><li>15M or 1H break in the bias direction</li><li>Stop just beyond the zone</li><li>One target: the opposite liquidity. Set it and forget it.</li></ul></div>'+
@@ -736,7 +749,7 @@ function drawer(){
     '<div class="hint" id="d_rline"></div>'+
     (t.source==='mt5'?'<div class="hint">Imported from MT5, position '+esc(t.ticket)+'. Put your TradingView stop in Planned stop so R is right.</div>':'')+
    '</div>'+
-   '<div class="sec"><h3>Grade it</h3><div class="gradebar" id="d_gb"></div>'+
+   '<div class="sec"><h3>Grade it</h3><div class="f">Setup'+seg('d_setup',['Normal','Impulsive'],setupOf(t))+'</div><div class="hint" id="d_setHint"></div><div class="gradebar" id="d_gb"></div>'+
     ['4H','1H','15M'].map(function(tf){var k='s'+(tf==='15M'?'15':tf.toLowerCase());return '<div class="srow" id="row_'+k+'"><span>'+tf+'</span>'+seg('d_'+k,['Bullish','Bearish','Neutral'],t[k],bias)+'</div>'}).join('')+
     '<div class="chk" id="d_chk"></div><div id="d_verdict"></div></div>'+
    '<div class="sec"><h3>Review</h3>'+
@@ -759,6 +772,8 @@ function dUpdate(){
   if(!D)return; var t=D.t,g=grade(t),want=t.dir==='Long'?'Bullish':'Bearish';
   $('d_gb').innerHTML='<span class="hint">'+g.mode+' · '+(g.rr?'R:R 1:'+g.rr.toFixed(2):'add entry, stop and target')+'</span><b class="gr '+gClass(g.grade)+'">'+g.score+'% '+esc(g.grade)+'</b>';
   $('row_s15').hidden=(t.model==='1H');
+  var su=setupOf(t);Array.prototype.forEach.call($('d_setup').querySelectorAll('button'),function(b){var v=b.getAttribute('data-v');b.setAttribute('aria-pressed',v===su?'true':'false');b.className=v==='Normal'?'sN':'sI'});
+  $('d_setHint').textContent=su==='Normal'?'With the 4H bias. Graded on the Normal checklist.':su==='Impulsive'?'Against the 4H bias (reversal). Graded on the Impulsive checklist.':'Pick Normal or Impulsive, or set the 4H bias below. The checklist follows it, like the indicator.';
   ['s4h','s1h','s15'].forEach(function(k){Array.prototype.forEach.call($('d_'+k).querySelectorAll('button'),function(b){var v=b.getAttribute('data-v');b.className=v===want?'ok':'no';b.setAttribute('aria-pressed',t[k]===v?'true':'false')})});
   $('d_chk').innerHTML=g.rows.map(function(x){
     if(x.head)return '<h4>'+esc(x.head)+'</h4>';
@@ -773,6 +788,8 @@ function wireDrawer(){
   $('scrim').onclick=closeDrawer; $('dClose').onclick=closeDrawer; if($('dSave'))$('dSave').onclick=saveDrawer;
   ['symbol','lots','entry','sl','tp','exit','pnl','notes'].forEach(function(k){$('d_'+k).addEventListener('input',function(){t[k]=k==='symbol'?this.value.toUpperCase().trim():this.value;dUpdate()})});
   ['open','close'].forEach(function(k){$('d_'+k).addEventListener('input',function(){t[k]=fromLocalInput(this.value);dUpdate()})});
+  $('d_setup').addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;var want=t.dir==='Long'?'Bullish':'Bearish',opp=want==='Bullish'?'Bearish':'Bullish';
+    t.s4h=b.getAttribute('data-v')==='Normal'?want:opp;t.graded=true;dUpdate()});
   ['dir','model','s4h','s1h','s15','plan'].forEach(function(k){$('d_'+k).addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;var v=b.getAttribute('data-v');t[k]=(k==='plan'&&v==='Auto')?'':v;
     Array.prototype.forEach.call(this.querySelectorAll('button'),function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});t.graded=true;dUpdate()})});
   $('d_chk').addEventListener('click',function(ev){var b=ev.target.closest('button[data-k]');if(!b)return;var k=b.getAttribute('data-k');t.checks[k]=!t.checks[k];t.graded=true;dUpdate()});
@@ -922,7 +939,7 @@ $('view').addEventListener('click',function(ev){
 $('view').addEventListener('keydown',function(ev){if(ev.key==='Enter'){var o=ev.target.closest('[data-open]');if(o)openTrade(o.getAttribute('data-open'))}});
 $('view').addEventListener('change',function(ev){var id=ev.target.id;
   if(id==='symSel'){S.sym=ev.target.value;render()}
-  if(id==='fSym'){S.tf.sym=ev.target.value;render()} if(id==='fRes'){S.tf.res=ev.target.value;render()} if(id==='fPlan'){S.tf.plan=ev.target.value;render()}});
+  if(id==='fSym'){S.tf.sym=ev.target.value;render()} if(id==='fRes'){S.tf.res=ev.target.value;render()} if(id==='fPlan'){S.tf.plan=ev.target.value;render()} if(id==='fSetup'){S.tf.setup=ev.target.value;render()}});
 $('view').addEventListener('input',function(ev){if(ev.target.id==='fQ'){S.tf.q=ev.target.value;render()}});
 
 /* ---------------- storage: this phone first, Supabase sync when signed in ---------------- */
