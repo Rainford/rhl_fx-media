@@ -4,6 +4,16 @@
   publish = "."
   command = ""
 
+[functions]
+  directory = "netlify/functions"
+
+# TradingView webhook -> journal
+[[redirects]]
+  from = "/api/tv"
+  to = "/.netlify/functions/tv"
+  status = 200
+  force = true
+
 [[headers]]
   for = "/sw.js"
   [headers.values]

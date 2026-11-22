@@ -200,6 +200,14 @@ img.shot{max-width:100%;border-radius:8px;border:1px solid var(--line);display:b
 input.masked{-webkit-text-security:disc;color:var(--mute)}
 .empty{color:var(--mute);padding:20px;text-align:center;border:1px dashed var(--line2);border-radius:10px}
 .jl{display:flex;flex-direction:column;gap:10px}
+.je.su{cursor:default}
+.sulink{background:none;border:0;padding:0;text-align:left;cursor:pointer;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px}
+.pill.st-new{color:#1a1300;background:#ffc42e;border-color:#ffc42e}
+.pill.st-taken{color:#fff;background:#0f6b45;border-color:#22e08a}
+.pill.st-missed{color:#fff;background:#8a2230;border-color:#ff4d5e}
+.pill.st-skipped{color:#fff;background:#3a4252;border-color:#5d6576}
+.dot{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:#ffc42e;color:#1a1300;font-size:11px;font-weight:700;line-height:18px;text-align:center;margin-left:4px}
+.postbox .postcard{position:fixed;z-index:51;left:50%;top:50%;transform:translate(-50%,-50%);width:min(460px,calc(100% - 32px));max-height:calc(100% - 40px);overflow:auto;background:var(--bg);border:1px solid var(--line2);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
 .heat,.heatm{display:grid;grid-template-columns:30px repeat(26,14px);gap:3px;width:max-content}
 .heat{grid-template-rows:repeat(7,14px)}
 .heatm{font-size:10px;color:var(--mute);margin-bottom:4px}
@@ -260,7 +268,7 @@ var MONTHS=['January','February','March','April','May','June','July','August','S
 
 /* ---------------- state ---------------- */
 var S={trades:[],days:{},live:false,demo:true,loaded:false,unit:lsGet('rhlj_unit')||'R',range:lsGet('rhlj_range')||'all',sym:'all',
-  tf:{sym:'all',res:'all',plan:'all',setup:'all',q:''},month:null,db:null,assets:null,canWrite:true,err:''};
+  tf:{sym:'all',res:'all',plan:'all',setup:'all',q:''},setups:[],tview:'trades',month:null,db:null,assets:null,canWrite:true,err:''};
 var MARKETS=['US30','JP225','USOIL','USTEC','XAUUSD'];
 var MISTAKES=['Outside the plan','Entered early','Moved stop','Closed early','Chased entry','Revenge trade','Oversized','No session'];
 var TAGS=['A+ setup','News','Asia','London','New York','Sweep','Clean break'];
@@ -476,6 +484,7 @@ function setBanner(){
   var h='';
   if(S.demo&&S.loaded)h='<div class="banner"><p><b>These are example trades.</b> Nothing here is yours yet. Import your MT5 report or add a trade, and the examples disappear.</p><button class="btn sm" type="button" data-act="import">Import MT5 report</button></div>';
   if(S.unit==='%'&&!acctSize())h+='<div class="banner warn"><p>To show results in %, set your account size in Settings.</p><a class="btn sm" href="#settings">Open Settings</a></div>';
+  if(S.loaded&&!S.demo){h+=goalBanner()+weekBanner()}
   if(S.err)h+='<div class="banner warn"><p>'+esc(S.err)+'</p></div>';
   $('bannerBox').innerHTML=h;
 }
@@ -491,7 +500,7 @@ function vDashboard(){
   var recent=list.slice().sort(function(a,b){return new Date(b.close||b.open)-new Date(a.close||a.open)}).slice(0,8);
   return '<div class="ph"><div class="filters"><div class="seg" id="rangeSeg">'+ranges.map(function(r){return '<button type="button" data-r="'+r[0]+'" aria-pressed="'+(S.range===r[0])+'">'+r[1]+'</button>'}).join('')+'</div>'+
     '<select id="symSel" aria-label="Market"><option value="all">All markets</option>'+syms.map(function(s){return '<option'+(S.sym===s?' selected':'')+'>'+esc(s)+'</option>'}).join('')+'</select></div>'+
-    '<span class="hint">'+st.n+' trades · '+st.closed+' closed</span></div>'+
+    '<span class="hint">'+st.n+' trades · '+st.closed+' closed</span></div>'+goalsPanel()+
   '<div class="kpis">'+
     kpi('Net result',fmtV(st.net),vClass(st.net),st.closed+' closed trades')+
     kpi('Win rate',pct(st.wr),'',st.wins+'W · '+st.be+'BE · '+st.losses+'L',wlBar)+
@@ -528,6 +537,7 @@ function tradeTable(list,compact){
 }
 
 function vTrades(){
+  if(S.tview==='setups')return vSetups();
   var f=S.tf,syms=uniq(all().map(function(t){return t.symbol}));
   var list=all().filter(function(t){
     if(f.sym!=='all'&&t.symbol!==f.sym)return false;
@@ -537,7 +547,7 @@ function vTrades(){
     if(f.q){var q=f.q.toLowerCase();if(((t.notes||'')+' '+(t.tags||[]).join(' ')+' '+(t.mistakes||[]).join(' ')+' '+t.symbol).toLowerCase().indexOf(q)<0)return false}
     return true}).sort(function(a,b){return new Date(b.close||b.open)-new Date(a.close||a.open)});
   var st=stats(list);
-  return '<section class="panel"><div class="ph"><h2>Trade log</h2><span class="hint">'+list.length+' trades · net <span class="num '+vClass(st.net)+'">'+fmtV(st.net)+'</span> · win rate '+pct(st.wr)+'</span></div>'+
+  return '<div class="ph">'+tabSeg('trades')+'</div><section class="panel"><div class="ph"><h2>Trade log</h2><span class="hint">'+list.length+' trades · net <span class="num '+vClass(st.net)+'">'+fmtV(st.net)+'</span> · win rate '+pct(st.wr)+'</span></div>'+
     '<div class="filters">'+
       '<select id="fSym" aria-label="Market"><option value="all">All markets</option>'+syms.map(function(s){return '<option'+(f.sym===s?' selected':'')+'>'+esc(s)+'</option>'}).join('')+'</select>'+
       '<select id="fRes" aria-label="Status">'+[['all','All results'],['win','Wins'],['loss','Losses'],['be','Break-even'],['open','Open'],['ungraded','Not graded']].map(function(o){return '<option value="'+o[0]+'"'+(f.res===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select>'+
@@ -575,12 +585,14 @@ function weekStats(from,to,list){
 function weekCard(x){
   var w=x.st,st=w.st,f=new Date(x.from+'T12:00'),t=new Date(x.to+'T12:00');
   var range=f.toLocaleDateString([], {month:'short',day:'numeric'})+' – '+t.toLocaleDateString([], {month:'short',day:'numeric'});
-  if(!w.tl.length)return '<div class="je" id="wk-'+x.n+'" style="cursor:default"><div class="top2"><b>Week '+x.n+' <span class="m" style="font-weight:400">'+range+'</span></b><span class="m">No trades</span></div></div>';
+  if(!w.tl.length)return '<div class="je" id="wk-'+x.n+'" style="cursor:default"><div class="top2"><b>Week '+x.n+' <span class="m" style="font-weight:400">'+range+'</span></b><span class="m">No trades</span></div>'+(S.days['week-'+x.from]?'<div class="filters"><button class="btn ghost sm" type="button" data-wkrev="'+x.from+'">Edit review</button></div>':'')+'</div>';
   var best=w.tl.filter(function(t){return val(t)!=null}).sort(function(a,b){return val(b)-val(a)});
   function cell(l,v,c){return '<div class="stat"><span>'+l+'</span><b class="num '+(c||'')+'">'+v+'</b></div>'}
   return '<div class="je" id="wk-'+x.n+'" style="cursor:default"><div class="top2"><b>Week '+x.n+' <span class="m" style="font-weight:400">'+range+'</span></b><b class="num '+vClass(st.net)+'">'+fmtV(st.closed?st.net:null)+'</b></div>'+
     '<div class="wkg">'+cell('Trades',st.n+(w.tdays?' · '+w.tdays+'d':''))+cell('Win rate',pct(st.wr))+cell('Profit factor',ratio(st.pf),st.pf!=null&&st.pf>=1?'g':st.pf!=null?'b':'')+
     cell('Avg grade',st.avgScore==null?'-':Math.round(st.avgScore)+'%')+cell('In plan',pct(st.adherence),st.adherence!=null&&st.adherence<.7?'b':'')+cell('Rules kept',pct(w.rules),w.rules!=null&&w.rules<.7?'b':w.rules!=null&&w.rules>=.9?'g':'')+'</div>'+
+    (function(){var r=S.days['week-'+x.from];return r&&(r.well||r.improve||r.focus)?'<div class="hint" style="white-space:pre-wrap"><b style="color:var(--text)">Review:</b> '+esc((r.focus?'Focus: '+r.focus:r.improve||r.well).slice(0,160))+'</div>':''})()+
+    '<div class="filters"><button class="btn ghost sm" type="button" data-wkrev="'+x.from+'">'+(S.days['week-'+x.from]?'Edit review':'Write review')+'</button></div>'+
     '<div class="hint">'+(w.setups.Normal||w.setups.Impulsive?'Setups: '+w.setups.Normal+' Normal · '+w.setups.Impulsive+' Impulsive · ':'')+(best.length?'Best '+esc(best[0].symbol)+' <span class="'+vClass(val(best[0]))+'">'+fmtV(val(best[0]))+'</span> · Worst '+esc(best[best.length-1].symbol)+' <span class="'+vClass(val(best[best.length-1]))+'">'+fmtV(val(best[best.length-1]))+'</span>':'')+'</div></div>';
 }
 
@@ -746,6 +758,183 @@ $('view').addEventListener('click',function(ev){
   if(t.id==='pSave'){putDay(PCFG_ID,readEditor());var pm=$('pMsg');if(pm)pm.textContent='Saved.';return}
 });
 
+/* ================= SETUPS (TradingView alerts + missed setups) ================= */
+function putSetups(docs){
+  docs.forEach(function(doc){var i=-1;S.setups.forEach(function(x,j){if(x.id===doc.id)i=j});if(i>=0)S.setups[i]=doc;else S.setups.push(doc)});
+  saveCache();queue(docs.map(function(d){return{k:'s',op:'put',id:d.id}}));render();
+}
+function removeSetup(id){S.setups=S.setups.filter(function(x){return x.id!==id});saveCache();queue([{k:'s',op:'del',id:id}]);render()}
+function suTime(su){return su.time||su.open||''}
+function suGrade(su){var t=clone(su);t.open=suTime(su);if(!t.checks)t.checks=blankChecks();var g=grade(t);
+  return{grade:su.source==='tv'&&su.grade?su.grade:g.grade,score:su.source==='tv'&&su.score!=null&&su.score!==''?+su.score:g.score,rr:g.rr||(+su.rr||0),setup:setupOf(t)||su.setup||''}}
+function suR(su){var g=suGrade(su);return su.outcome==='tp'?(g.rr||null):su.outcome==='sl'?-1:su.outcome==='be'?0:null}
+// link TradingView setups to the MT5/manual trade you took, and grade that trade from the alert
+function autoMatch(){
+  if(S.demo||!S.setups.length)return;
+  var trades=realTrades(),tU=[],sU=[],used={};
+  S.setups.forEach(function(su){
+    if((su.status||'new')!=='new'||su.source!=='tv')return;
+    var st=new Date(su.firstTime||su.time).getTime(),en=new Date(su.time).getTime();if(isNaN(st)||isNaN(en))return;
+    var cand=trades.filter(function(t){if(used[t.id]||t.setupId||t.symbol!==su.symbol||t.dir!==su.dir)return false;var o=new Date(t.open).getTime();return o>=st-3600e3&&o<=en+6*3600e3});
+    if(!cand.length)return;
+    cand.sort(function(a,b){return Math.abs(new Date(a.open)-en)-Math.abs(new Date(b.open)-en)});
+    var t=clone(stripD(cand[0]));used[t.id]=1;
+    if(!t.graded){t.model=su.model||t.model;t.s4h=su.s4h||'';t.s1h=su.s1h||'';t.s15=su.s15||'';var c=blankChecks();for(var k in (su.checks||{}))c[k]=!!su.checks[k];t.checks=c;
+      if(+su.sl>0)t.sl=su.sl;if(+su.tp>0)t.tp=su.tp;t.graded=true;t.autoGraded=true}
+    t.setupId=su.id;t._stamp=Date.now();tU.push(t);
+    var s2=clone(su);s2.status='taken';s2.tradeId=t.id;s2._stamp=Date.now();sU.push(s2);
+  });
+  if(tU.length)putTrades(tU);if(sU.length){putSetups(sU);toast('Graded '+tU.length+' trade'+(tU.length>1?'s':'')+' from your TradingView alerts.')}
+}
+function tabSeg(cur){return '<div class="seg" id="tSeg"><button type="button" data-tv="trades" aria-pressed="'+(cur==='trades')+'">Trades</button><button type="button" data-tv="setups" aria-pressed="'+(cur==='setups')+'">Setups'+(needReview().length?' <span class="dot">'+needReview().length+'</span>':'')+'</button></div>'}
+function needReview(){var lim=Date.now()-8*3600e3;return S.setups.filter(function(s){return (s.status||'new')==='new'&&new Date(suTime(s)).getTime()<lim})}
+function suCard(su){
+  var g=suGrade(su),st=su.status||'new',r=suR(su),when=fmtDate(suTime(su),true);
+  var acts='';
+  if(st==='new')acts='<div class="filters"><button class="btn sm" type="button" data-sutake="'+esc(su.id)+'">I took it</button><button class="btn ghost sm" type="button" data-sust="missed" data-id="'+esc(su.id)+'">Missed it</button><button class="btn ghost sm" type="button" data-sust="skipped" data-id="'+esc(su.id)+'">Skipped on purpose</button></div>';
+  else if(st==='missed'||st==='skipped')acts='<div class="filters"><span class="hint">What did price do?</span><div class="seg">'+[['tp','Hit target'],['sl','Hit stop'],['be','Neither']].map(function(o){return '<button type="button" data-suoc="'+o[0]+'" data-id="'+esc(su.id)+'" aria-pressed="'+(su.outcome===o[0])+'">'+o[1]+'</button>'}).join('')+'</div></div>';
+  else if(st==='taken'&&su.tradeId)acts='<div class="filters"><button class="btn ghost sm" type="button" data-open="'+esc(su.tradeId)+'">Open the trade</button></div>';
+  return '<div class="je su"><div class="top2"><button type="button" class="sulink" data-suopen="'+esc(su.id)+'"><b>'+esc(su.symbol)+'</b> <span class="side '+esc(su.dir)+'">'+(su.dir==='Long'?'BUY':'SELL')+'</span> '+setupPill(g.setup)+' <span class="gr '+gClass(g.grade)+'">'+esc(g.grade||'-')+(g.score?' <span class="m" style="font-weight:400">'+g.score+'%</span>':'')+'</span></button>'+
+    '<span class="pill st-'+st+'">'+({new:'To review',taken:'Taken',missed:'Missed',skipped:'Skipped'})[st]+'</span></div>'+
+    '<div class="hint">'+esc(when)+' · '+esc(su.model||'15M')+(su.entry?' · Entry '+esc(su.entry)+' · SL '+esc(su.sl||'-')+' · TP '+esc(su.tp||'-'):'')+(g.rr?' · 1:'+g.rr.toFixed(1):'')+(su.source==='tv'?' · from TradingView':'')+(r!=null?' · <b class="num '+vClass(r)+'">'+fmtV(r,'R')+'</b>':'')+'</div>'+acts+'</div>';
+}
+function vSetups(){
+  var all_=S.setups.slice().sort(function(a,b){return new Date(suTime(b))-new Date(suTime(a))});
+  var rev=all_.filter(function(s){return (s.status||'new')==='new'}),mis=all_.filter(function(s){return s.status==='missed'||s.status==='skipped'}),tak=all_.filter(function(s){return s.status==='taken'});
+  var good=function(s){var g=suGrade(s).grade;return g==='A+'||g==='A'};
+  var mA=mis.filter(function(s){return s.status==='missed'&&good(s)}),mAr=mA.map(suR).filter(function(r){return r!=null});
+  var skp=mis.filter(function(s){return s.status==='skipped'}),skpR=skp.map(suR).filter(function(r){return r!=null});
+  var sum=function(a){return a.reduce(function(x,y){return x+y},0)};
+  return '<div class="ph">'+tabSeg('setups')+'<button class="btn ghost sm" type="button" id="newMissed">+ Missed setup</button></div>'+
+  '<div class="kpis">'+kpi('Setups logged',all_.length,'',tak.length+' taken · '+mis.filter(function(s){return s.status==='missed'}).length+' missed · '+skp.length+' skipped')+
+    kpi('Missed A+ / A',mA.length,mA.length?'w':'',mAr.length?'Would have made '+fmtV(sum(mAr),'R'):'Mark what price did to see the cost')+
+    kpi('Skipped on purpose',skp.length,'',skpR.length?'Would have made '+fmtV(sum(skpR),'R')+(sum(skpR)<0?' (good skips)':''):'Mark what price did')+'</div>'+
+  (rev.length?'<section class="panel"><h2>To review</h2><p class="hint" style="margin:0">Graded setups from your TradingView alerts. Trades you take in MT5 get linked and graded by themselves; anything left here, tell the journal what happened.</p><div class="jl">'+rev.map(suCard).join('')+'</div></section>':'')+
+  '<section class="panel"><h2>Missed and skipped</h2>'+(mis.length?'<div class="jl">'+mis.map(suCard).join('')+'</div>':'<div class="empty">Nothing here yet. Setups you did not take show up here, so you can see what they would have done.</div>')+'</section>'+
+  (tak.length?'<section class="panel"><h2>Taken</h2><div class="jl">'+tak.slice(0,20).map(suCard).join('')+'</div></section>':'')+
+  (!all_.length?'<section class="panel"><p class="hint" style="margin:0">Connect your TradingView grade alerts in Settings → <b>Sync from TradingView</b>, or add a missed setup by hand.</p></section>':'');
+}
+function openSetup(id){var su=S.setups.filter(function(x){return x.id===id})[0];if(!su)return;var c=clone(su);c.open=suTime(su);if(!c.checks)c.checks=blankChecks();else{var b=blankChecks();for(var k in c.checks)b[k]=!!c.checks[k];c.checks=b}if(!c.tags)c.tags=[];if(!c.mistakes)c.mistakes=[];D={t:c,isNew:false,kind:'setup',armed:false};drawer()}
+function takeSetup(id){var su=S.setups.filter(function(x){return x.id===id})[0];if(!su)return;var t=newTrade();
+  ['symbol','dir','model','s4h','s1h','s15','entry','sl','tp'].forEach(function(k){if(su[k])t[k]=su[k]});var b=blankChecks();for(var k in (su.checks||{}))b[k]=!!su.checks[k];t.checks=b;t.setupId=su.id;t.open=suTime(su)||t.open;
+  D={t:t,isNew:true,kind:'trade',armed:false};drawer()}
+$('view').addEventListener('click',function(ev){
+  var t=ev.target;
+  var tv=t.closest('[data-tv]');if(tv){S.tview=tv.getAttribute('data-tv');render();return}
+  if(t.id==='newMissed'){var n=newTrade();n.id='m'+Date.now().toString(36);n.status='missed';n.outcome='';D={t:n,isNew:true,kind:'setup',armed:false};drawer();return}
+  var so=t.closest('[data-suopen]');if(so){openSetup(so.getAttribute('data-suopen'));return}
+  var tk=t.closest('[data-sutake]');if(tk){takeSetup(tk.getAttribute('data-sutake'));return}
+  var ss=t.closest('[data-sust]');if(ss){var su=S.setups.filter(function(x){return x.id===ss.getAttribute('data-id')})[0];if(su){var c=clone(su);c.status=ss.getAttribute('data-sust');c._stamp=Date.now();putSetups([c])}return}
+  var oc=t.closest('[data-suoc]');if(oc){var s2=S.setups.filter(function(x){return x.id===oc.getAttribute('data-id')})[0];if(s2){var c2=clone(s2);c2.outcome=c2.outcome===oc.getAttribute('data-suoc')?'':oc.getAttribute('data-suoc');c2._stamp=Date.now();putSetups([c2])}return}
+});
+
+/* ================= BEFORE / AFTER POST ================= */
+function loadImg(ref){return resolveShot(ref).then(function(u){if(!u)return null;return new Promise(function(res){var im=new Image();im.crossOrigin='anonymous';im.onload=function(){res(im)};im.onerror=function(){res(null)};im.src=u})})}
+function postResult(t,kind){
+  if(kind==='setup'){var r=suR(t),st=t.status;return{big:r==null?(st==='skipped'?'SKIPPED':'MISSED'):fmtV(r,'R'),small:st==='skipped'?(r==null?'Setup I passed on':r>0?'Passed on it. It hit target':'Passed on it. It hit stop'):(r==null?'Setup I missed':r>0?'Missed it. It hit target':'Missed it. It hit stop'),col:r==null?'#ffc42e':r>0?'#22e08a':'#ff4d5e'}}
+  var d=derive(t),v=null,u='R';
+  if(S.unit==='%'&&acctSize()&&d.pnl!=null){v=d.pnl/acctSize()*100;u='%'}else v=d.r;
+  var res=d.res==='win'?'TARGET HIT':d.res==='loss'?'STOPPED OUT':d.res==='be'?'BREAK-EVEN':'RUNNING';
+  return{big:v==null?res:fmtV(v,u),small:res,col:d.res==='win'?'#22e08a':d.res==='loss'?'#ff4d5e':'#5b9dff'};
+}
+function makePost(t,kind){
+  return (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(function(){return Promise.all([t.shot?loadImg(t.shot):null,t.shot2?loadImg(t.shot2):null])}).then(function(ims){
+    var W=1080,H=1350,c=document.createElement('canvas');c.width=W;c.height=H;var x=c.getContext('2d');
+    var F=function(w,s){return w+' '+s+'px "IBM Plex Sans", system-ui, sans-serif'},M=function(w,s){return w+' '+s+'px "IBM Plex Mono", ui-monospace, monospace'};
+    x.fillStyle='#0b0e14';x.fillRect(0,0,W,H);
+    var g=kind==='setup'?suGrade(t):(function(){var gg=t.graded?grade(t):null;return{grade:gg?gg.grade:'',score:gg?gg.score:0,setup:setupOf(t)}})();
+    x.fillStyle='#5b9dff';x.font=M('600',30);x.fillText('RHL_FX™',60,78);
+    x.fillStyle='#e6e8ec';x.font=F('700',78);x.fillText(String(t.symbol||''),60,168);
+    var sw=x.measureText(String(t.symbol||'')).width;x.font=F('700',44);x.fillStyle=t.dir==='Long'?'#22e08a':'#ff4d5e';x.fillText(t.dir==='Long'?'BUY':'SELL',60+sw+24,166);
+    function pill(txt,bx,by,bg,fg){x.font=F('700',28);var w=x.measureText(txt).width+40;x.fillStyle=bg;roundRect(x,bx-w,by,w,52,26);x.fill();x.fillStyle=fg;x.fillText(txt,bx-w+20,by+36);return w}
+    var px=W-60;if(g.grade){px-=pill(g.grade+(g.score?'  '+g.score+'%':''),px,56,g.grade==='NO TRADE'?'#8a2230':'#0f6b45','#fff')+12}
+    if(g.setup)pill(g.setup.toUpperCase(),px,56,g.setup==='Impulsive'?'#ffc42e':'#2a4f9a',g.setup==='Impulsive'?'#1a1300':'#fff');
+    x.fillStyle='#8b93a3';x.font=F('500',28);x.fillText((t.model||'15M')+' entry model  ·  '+fmtDate(t.open||suTime(t),false),W-60-x.measureText((t.model||'15M')+' entry model  ·  '+fmtDate(t.open||suTime(t),false)).width,150);
+    var shots=ims.filter(Boolean),labels=ims[0]&&ims[1]?['BEFORE  ·  THE SETUP','AFTER  ·  THE RESULT']:[ims[0]?'THE SETUP':'THE RESULT'];
+    var top=210,bottom=1150,gap=24,n=shots.length||1,bh=(bottom-top-gap*(n-1))/n;
+    for(var i=0;i<n;i++){var by=top+i*(bh+gap);x.fillStyle='#141a24';roundRect(x,40,by,W-80,bh,22);x.fill();
+      var im=shots[i];if(im){var s=Math.min((W-80)/im.width,bh/im.height),w=im.width*s,h=im.height*s;x.save();roundRect(x,40,by,W-80,bh,22);x.clip();x.drawImage(im,40+(W-80-w)/2,by+(bh-h)/2,w,h);x.restore()}
+      else{x.fillStyle='#5d6576';x.font=F('500',32);x.fillText('Add a chart screenshot to this trade',90,by+bh/2)}
+      if(labels[i]){x.font=F('700',24);var lw=x.measureText(labels[i]).width+32;x.fillStyle='rgba(11,14,20,.85)';roundRect(x,60,by+20,lw,44,22);x.fill();x.fillStyle=i===0&&n===2?'#ffc42e':'#5b9dff';x.fillText(labels[i],76,by+50)}}
+    var pr=postResult(t,kind);
+    x.fillStyle=pr.col;x.font=M('700',72);x.fillText(pr.big,60,1248);
+    x.fillStyle='#e6e8ec';x.font=F('600',30);x.fillText(pr.small,62,1292);
+    x.fillStyle='#8b93a3';x.font=F('600',24);var tag='PATIENCE | DISCIPLINE | FEARLESS';x.fillText(tag,W-60-x.measureText(tag).width,1248);
+    x.font=F('500',20);var dis='Educational only, not financial advice';x.fillText(dis,W-60-x.measureText(dis).width,1290);
+    return new Promise(function(res){c.toBlob(function(b){res(b)},'image/jpeg',0.92)});
+  });
+}
+function roundRect(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath()}
+function showPost(t,kind){
+  var box=document.createElement('div');box.className='postbox';box.innerHTML='<div class="scrim" style="z-index:50"></div><div class="postcard"><div class="ph"><h2 style="font-size:15px">Before / after post</h2><button class="btn ghost sm" type="button" data-pclose>✕</button></div><div class="hint">Building the image…</div></div>';
+  document.body.appendChild(box);
+  var close=function(){box.remove()};box.querySelector('[data-pclose]').onclick=close;box.querySelector('.scrim').onclick=close;
+  makePost(t,kind).then(function(blob){
+    var url=URL.createObjectURL(blob),name='rhl_fx-'+String(t.symbol||'trade').toLowerCase()+'-'+dayKey(new Date(t.open||suTime(t)||Date.now()))+'.jpg';
+    var file=null;try{file=new File([blob],name,{type:'image/jpeg'})}catch(e){}
+    var canShare=file&&navigator.canShare&&navigator.canShare({files:[file]});
+    box.querySelector('.postcard').innerHTML='<div class="ph"><h2 style="font-size:15px">Before / after post</h2><button class="btn ghost sm" type="button" data-pclose>✕</button></div><img src="'+url+'" alt="Before and after post" style="width:100%;border-radius:10px;border:1px solid var(--line)">'+
+      '<div class="filters">'+(canShare?'<button class="btn" type="button" data-pshare>Share or save to Photos</button>':'')+'<a class="btn ghost" href="'+url+'" download="'+name+'">Download</a></div><p class="hint" style="margin:0">Shows R'+(S.unit==='%'&&acctSize()?' or %':'')+' only, never dollars. 1080 × 1350, ready for an Instagram post.</p>';
+    box.querySelector('[data-pclose]').onclick=close;
+    var sh=box.querySelector('[data-pshare]');if(sh)sh.onclick=function(){navigator.share({files:[file]}).catch(function(){})};
+  }).catch(function(){box.querySelector('.postcard .hint').textContent='Could not build the image. Check the screenshots load, then try again.'});
+}
+
+/* ================= GOALS ================= */
+function goals(){var g=S.days['cfg-goals']||{};return{target:+g.target>0?+g.target:0,maxDD:+g.maxDD>0?+g.maxDD:0,unit:g.unit==='%'?'%':'R'}}
+function goalVal(t,u){if(u==='R')return t._d.r;var a=acctSize();return a&&t._d.pnl!=null?t._d.pnl/a*100:null}
+function monthGoal(){
+  var G=goals();if(!G.target&&!G.maxDD)return null;
+  var now=new Date(),list=realTrades().map(function(t){if(!t._d)t._d=derive(t);return t}).filter(function(t){var d=new Date(t.close||t.open);return t._d.res!=='open'&&d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()});
+  list.sort(function(a,b){return new Date(a.close||a.open)-new Date(b.close||b.open)});
+  var cum=0,peak=0,dd=0,missing=0;list.forEach(function(t){var v=goalVal(t,G.unit);if(v==null){missing++;return}cum+=v;peak=Math.max(peak,cum)});dd=peak-cum;
+  return{G:G,net:cum,dd:dd,missing:missing,needAcct:G.unit==='%'&&!acctSize()};
+}
+function goalsPanel(){
+  var M=monthGoal();if(!M)return '';var G=M.G,u=G.unit;
+  function bar(v,max,col){var p=max?Math.max(0,Math.min(100,v/max*100)):0;return '<div class="bar2" style="height:10px"><i style="width:'+p+'%;background:'+col+'"></i></div>'}
+  var ddCol=G.maxDD&&M.dd>=G.maxDD?'var(--bad)':G.maxDD&&M.dd>=.8*G.maxDD?'var(--warn)':'var(--good)';
+  return '<section class="panel"><div class="ph"><h2>'+MONTHS[new Date().getMonth()]+' goals</h2><a class="btn ghost sm" href="#settings">Edit goals</a></div>'+
+    (M.needAcct?'<div class="hint">Set your account size in Settings to track goals in %.</div>':'')+
+    '<div class="grid2" style="gap:14px">'+
+    (G.target?'<div class="stat"><span>Target '+fmtV(G.target,u,false)+'</span><b class="num '+vClass(M.net)+'" style="font-size:20px">'+fmtV(M.net,u)+' <span class="m" style="font-size:13px">'+(M.net>=G.target?'reached':Math.max(0,Math.round(M.net/G.target*100))+'%')+'</span></b>'+bar(M.net,G.target,'var(--good)')+'</div>':'')+
+    (G.maxDD?'<div class="stat"><span>Drawdown limit '+fmtV(G.maxDD,u,false)+'</span><b class="num" style="font-size:20px;color:'+ddCol+'">'+fmtV(M.dd,u,false)+' <span class="m" style="font-size:13px">from this month’s high</span></b>'+bar(M.dd,G.maxDD,ddCol)+'</div>':'')+
+    '</div>'+(M.missing?'<div class="hint">'+M.missing+' trade'+(M.missing>1?'s':'')+' left out (no planned stop'+(u==='%'?' or $ result':'')+').</div>':'')+'</section>';
+}
+function goalBanner(){var M=monthGoal();if(!M||!M.G.maxDD)return '';
+  if(M.dd>=M.G.maxDD)return '<div class="banner warn" style="background:var(--bad-bg);border-color:var(--bad)"><p><b>Monthly drawdown limit reached</b> ('+fmtV(M.dd,M.G.unit,false)+'). Your rule says stop trading for the rest of the month.</p></div>';
+  if(M.dd>=.8*M.G.maxDD)return '<div class="banner warn"><p><b>Close to your drawdown limit:</b> '+fmtV(M.dd,M.G.unit,false)+' of '+fmtV(M.G.maxDD,M.G.unit,false)+'. Only A+ setups from here.</p></div>';
+  return '';}
+function goalsSettings(){var G=goals();
+  return '<section class="panel"><h2>Monthly goals</h2><p class="hint" style="margin:0">A target for the month and the most you will let the month drop from its high. The dashboard tracks both and warns you near the limit.</p>'+
+  '<div class="filters"><label class="f" for="gTarget">Target<input type="number" id="gTarget" min="0" step="any" inputmode="decimal" value="'+(G.target||'')+'" style="width:110px"></label>'+
+  '<label class="f" for="gDD">Max drawdown<input type="number" id="gDD" min="0" step="any" inputmode="decimal" value="'+(G.maxDD||'')+'" style="width:110px"></label>'+
+  '<div class="f">In'+'<div class="seg" id="gUnit"><button type="button" data-gu="R" aria-pressed="'+(G.unit==='R')+'">R</button><button type="button" data-gu="%" aria-pressed="'+(G.unit==='%')+'">%</button></div></div>'+
+  '<button class="btn ghost" type="button" id="gSave" style="align-self:flex-end">Save</button><span class="msg" id="gMsg" style="align-self:flex-end"></span></div></section>';}
+$('view').addEventListener('click',function(ev){
+  var gu=ev.target.closest('[data-gu]');if(gu){Array.prototype.forEach.call(gu.parentNode.querySelectorAll('button'),function(b){b.setAttribute('aria-pressed',b===gu?'true':'false')});return}
+  if(ev.target.id==='gSave'){var u=(document.querySelector('#gUnit [aria-pressed=true]')||{}).getAttribute?document.querySelector('#gUnit [aria-pressed=true]').getAttribute('data-gu'):'R';
+    var tg=+$('gTarget').value,dd=+$('gDD').value;putDay('cfg-goals',(tg>0||dd>0)?{target:tg>0?tg:0,maxDD:dd>0?dd:0,unit:u,_stamp:Date.now()}:null);var m=$('gMsg');if(m)m.textContent='Saved.'}
+});
+
+/* ================= WEEKLY REVIEW ================= */
+function weekStartKey(d){d=new Date(d);d.setHours(12,0,0,0);d.setDate(d.getDate()-d.getDay());return dayKey(d)}
+function weekBanner(){var now=new Date();if(now.getDay()!==0&&now.getDay()!==6)return '';var k='week-'+weekStartKey(now);if(S.days[k]&&(S.days[k].well||S.days[k].improve||S.days[k].focus))return '';
+  return '<div class="banner"><p><b>Weekly review time.</b> Look at this week’s numbers and write what to keep and what to fix.</p><button class="btn sm" type="button" data-wkrev="'+weekStartKey(now)+'">Write my review</button></div>'}
+function openWeek(from){
+  var k='week-'+from,e=clone(S.days[k]||{}),to=new Date(from+'T12:00');to.setDate(to.getDate()+6);var toK=dayKey(to);
+  var ws=weekStats(from,toK,all());
+  $('drawerBox').innerHTML='<div class="scrim" id="scrim"></div><aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle"><div class="dh"><h2 id="dTitle">Week of '+new Date(from+'T12:00').toLocaleDateString([], {month:'short',day:'numeric'})+'</h2><button class="btn" type="button" id="wSave">Save</button><button class="btn ghost" type="button" id="dClose" aria-label="Close">✕</button></div><div class="db">'+
+    weekCard({n:'',from:from,to:toK,st:ws}).replace(/<button class="btn ghost sm" type="button" data-wkrev[^>]*>[^<]*<\/button>/,'')+
+    '<label class="f" for="w_well">What went well<textarea id="w_well" placeholder="Rules I kept, setups I waited for">'+esc(e.well||'')+'</textarea></label>'+
+    '<label class="f" for="w_imp">What to improve<textarea id="w_imp" placeholder="Mistakes, rules I broke, trades outside the plan">'+esc(e.improve||'')+'</textarea></label>'+
+    '<label class="f" for="w_focus">Focus for next week<textarea id="w_focus" placeholder="One or two things to do better">'+esc(e.focus||'')+'</textarea></label></div></aside>';
+  document.body.style.overflow='hidden';$('scrim').onclick=closeDrawer;$('dClose').onclick=closeDrawer;
+  $('wSave').onclick=function(){var doc={well:$('w_well').value,improve:$('w_imp').value,focus:$('w_focus').value,week:from,_stamp:Date.now()};putDay(k,(doc.well||doc.improve||doc.focus)?doc:null);closeDrawer()};
+  setTimeout(function(){$('w_well').focus()},30);
+}
+document.addEventListener('click',function(ev){var w=ev.target.closest&&ev.target.closest('[data-wkrev]');if(w){openWeek(w.getAttribute('data-wkrev'))}});
+
 var VIEWS={dashboard:vDashboard,trades:vTrades,calendar:vCalendar,progress:vProgress,playbook:vPlaybook,journal:vJournal,settings:vSettings};
 function route(){var h=(location.hash||'').replace('#','');return VIEWS[h]?h:'dashboard'}
 function render(){
@@ -782,16 +971,18 @@ function drawer(){
   var t=D.t,want=t.dir==='Long'?'Bullish':'Bearish';
   var bias=function(o){return o===want?'ok':'no'};
   $('drawerBox').innerHTML='<div class="scrim" id="scrim"></div><aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle">'+
-  '<div class="dh"><h2 id="dTitle">'+(D.isNew?'New trade':esc(t.symbol||'Trade'))+'</h2>'+(isDemo(t)?'<span class="pill">Example</span>':'<button class="btn" type="button" id="dSave">Save</button>')+'<button class="btn ghost" type="button" id="dClose" aria-label="Close">✕</button></div>'+
+  '<div class="dh"><h2 id="dTitle">'+(D.kind==='setup'?(D.isNew?'New missed setup':'Setup · '+esc(t.symbol)):D.isNew?'New trade':esc(t.symbol||'Trade'))+'</h2>'+(isDemo(t)?'<span class="pill">Example</span>':'<button class="btn" type="button" id="dSave">Save</button>')+'<button class="btn ghost" type="button" id="dClose" aria-label="Close">✕</button></div>'+
   '<div class="db">'+
-   '<div class="sec"><h3>Trade</h3>'+
+   (D.isNew&&!t.setupId?'<div class="seg wide" id="d_kind"><button type="button" data-k="trade" aria-pressed="'+(D.kind!=='setup')+'">I took this trade</button><button type="button" data-k="setup" aria-pressed="'+(D.kind==='setup')+'">Missed setup</button></div>':'')+
+   (t.autoGraded?'<div class="banner" style="margin:0"><p>Graded from your TradingView alert. Check it and change anything that is off.</p></div>':'')+
+   '<div class="sec"><h3>'+(D.kind==='setup'?'Setup':'Trade')+'</h3>'+
     '<div class="fg2"><label class="f" for="d_symbol">Market<input type="text" id="d_symbol" list="mkts" autocapitalize="characters" value="'+esc(t.symbol)+'" placeholder="XAUUSD"><datalist id="mkts">'+MARKETS.map(function(m){return '<option value="'+m+'">'}).join('')+'</datalist></label>'+
     '<label class="f" for="d_lots">Lots<input type="number" step="any" inputmode="decimal" id="d_lots" value="'+esc(t.lots)+'"></label></div>'+
     '<div class="fg2"><div class="f">Side'+seg('d_dir',['Long','Short'],t.dir)+'</div><label class="f" for="d_model">Entry model<input type="text" id="d_model" list="tfs" autocapitalize="characters" value="'+esc(t.model||'15M')+'" placeholder="15M, 1H, 2H, 4H"><datalist id="tfs"><option value="15M"><option value="30M"><option value="1H"><option value="2H"><option value="4H"></datalist></label></div>'+
     '<div class="hint" id="d_mhint"></div>'+
     '<div class="fg2"><label class="f" for="d_open">Opened<input type="datetime-local" id="d_open" value="'+toLocalInput(t.open)+'"></label><label class="f" for="d_close">Closed<input type="datetime-local" id="d_close" value="'+toLocalInput(t.close)+'"></label></div>'+
     '<div class="fg"><label class="f" for="d_entry">Entry<input type="number" step="any" inputmode="decimal" id="d_entry" value="'+esc(t.entry)+'"></label><label class="f" for="d_sl">Planned stop<input type="number" step="any" inputmode="decimal" id="d_sl" value="'+esc(t.sl)+'"></label><label class="f" for="d_tp">Target<input type="number" step="any" inputmode="decimal" id="d_tp" value="'+esc(t.tp)+'"></label></div>'+
-    '<div class="fg2"><label class="f" for="d_exit">Exit price<input type="number" step="any" inputmode="decimal" id="d_exit" value="'+esc(t.exit)+'"></label><label class="f" for="d_pnl">Result in $ (after costs)<input type="number" step="any" inputmode="decimal" id="d_pnl" value="'+esc(t.pnl)+'"></label></div>'+
+    (D.kind==='setup'?'<div class="f">What happened'+seg('d_status',['Missed','Skipped','Taken'],({missed:'Missed',skipped:'Skipped',taken:'Taken'})[t.status||'missed'])+'</div><div class="f">What did price do?'+seg('d_outcome',['Hit target','Hit stop','Neither'],({tp:'Hit target',sl:'Hit stop',be:'Neither'})[t.outcome]||'')+'</div>':'<div class="fg2"><label class="f" for="d_exit">Exit price<input type="number" step="any" inputmode="decimal" id="d_exit" value="'+esc(t.exit)+'"></label><label class="f" for="d_pnl">Result in $ (after costs)<input type="number" step="any" inputmode="decimal" id="d_pnl" value="'+esc(t.pnl)+'"></label></div>')+
     '<div class="hint" id="d_rline"></div>'+
     (t.source==='mt5'?'<div class="hint">Imported from MT5, position '+esc(t.ticket)+'. Put your TradingView stop in Planned stop so R is right.</div>':'')+
    '</div>'+
@@ -799,19 +990,21 @@ function drawer(){
     ['4H','1H','15M'].map(function(tf){var k='s'+(tf==='15M'?'15':tf.toLowerCase());return '<div class="srow" id="row_'+k+'"><span>'+tf+'</span>'+seg('d_'+k,['Bullish','Bearish','Neutral'],t[k],bias)+'</div>'}).join('')+
     '<div class="chk" id="d_chk"></div><div id="d_verdict"></div></div>'+
    '<div class="sec"><h3>Review</h3>'+
-    '<div class="f">Followed the plan?'+seg('d_plan',['Yes','No','Auto'],t.plan||'Auto')+'</div>'+
-    '<div class="f">Mistakes<div class="chips bad" id="d_mis">'+MISTAKES.map(function(x){return '<button type="button" data-v="'+esc(x)+'" aria-pressed="'+(t.mistakes.indexOf(x)>=0)+'">'+esc(x)+'</button>'}).join('')+'</div></div>'+
-    '<div class="f">Tags<div class="chips" id="d_tags">'+TAGS.map(function(x){return '<button type="button" data-v="'+esc(x)+'" aria-pressed="'+(t.tags.indexOf(x)>=0)+'">'+esc(x)+'</button>'}).join('')+'</div></div>'+
+    (D.kind==='setup'?'':'<div class="f">Followed the plan?'+seg('d_plan',['Yes','No','Auto'],t.plan||'Auto')+'</div>')+
+    (D.kind==='setup'?'':'<div class="f">Mistakes<div class="chips bad" id="d_mis">'+MISTAKES.map(function(x){return '<button type="button" data-v="'+esc(x)+'" aria-pressed="'+(t.mistakes.indexOf(x)>=0)+'">'+esc(x)+'</button>'}).join('')+'</div></div>')+
+    (D.kind==='setup'?'':'<div class="f">Tags<div class="chips" id="d_tags">'+TAGS.map(function(x){return '<button type="button" data-v="'+esc(x)+'" aria-pressed="'+(t.tags.indexOf(x)>=0)+'">'+esc(x)+'</button>'}).join('')+'</div></div>')+
     '<label class="f" for="d_notes">Notes<textarea id="d_notes" placeholder="What you saw, why you took it, what you felt">'+esc(t.notes)+'</textarea></label>'+
-    '<label class="f" for="d_shotIn">Chart screenshot<input type="file" id="d_shotIn" accept="image/*"></label><div id="d_shot">'+(t.shot?'<div class="hint">Loading screenshot…</div>':'')+'</div>'+
+    '<div class="fg2"><div class="f"><label for="d_shotIn">Before · the setup</label><input type="file" id="d_shotIn" data-f="shot" accept="image/*"><div id="d_shot">'+(t.shot?'<div class="hint">Loading…</div>':'')+'</div></div>'+
+    '<div class="f"><label for="d_shot2In">After · the result</label><input type="file" id="d_shot2In" data-f="shot2" accept="image/*"><div id="d_shot2">'+(t.shot2?'<div class="hint">Loading…</div>':'')+'</div></div></div>'+
+    '<button class="btn ghost" type="button" id="dPost">Make before / after post</button>'+
    '</div>'+
    '<div class="msg" id="dMsg" aria-live="polite"></div>'+
-   (D.isNew||isDemo(t)?'':'<div><button class="btn ghost danger sm" type="button" id="dDel">Delete trade</button></div>')+
+   (D.isNew||isDemo(t)?'':'<div><button class="btn ghost danger sm" type="button" id="dDel">Delete '+(D.kind==='setup'?'setup':'trade')+'</button></div>')+
    (isDemo(t)?'<div class="hint">This is an example trade, so changes here are not saved. Use + Trade or Import MT5 for your own.</div>':'')+
   '</div></aside>';
   document.body.style.overflow='hidden';
   wireDrawer(); dUpdate();
-  if(t.shot)resolveShot(t.shot).then(function(u){if(D&&D.t===t&&$('d_shot'))$('d_shot').innerHTML=u?'<img class="shot" alt="Chart for '+esc(t.symbol)+'" src="'+u+'">':'<div class="hint">This screenshot is saved on another device.</div>'});
+  ['shot','shot2'].forEach(function(f){if(t[f])resolveShot(t[f]).then(function(u){if(D&&D.t===t&&$('d_'+f))$('d_'+f).innerHTML=u?'<img class="shot" alt="Chart for '+esc(t.symbol)+'" src="'+u+'">':'<div class="hint">Saved on another device.</div>'})});
   setTimeout(function(){var f=$(D&&D.isNew?'d_symbol':'dClose');if(f)f.focus()},30);
 }
 function dUpdate(){
@@ -833,32 +1026,36 @@ function dUpdate(){
 function wireDrawer(){
   var t=D.t;
   $('scrim').onclick=closeDrawer; $('dClose').onclick=closeDrawer; if($('dSave'))$('dSave').onclick=saveDrawer;
-  ['symbol','lots','entry','sl','tp','exit','pnl','notes'].forEach(function(k){$('d_'+k).addEventListener('input',function(){t[k]=k==='symbol'?this.value.toUpperCase().trim():this.value;dUpdate()})});
+  ['symbol','lots','entry','sl','tp','exit','pnl','notes'].forEach(function(k){if(!$('d_'+k))return;$('d_'+k).addEventListener('input',function(){t[k]=k==='symbol'?this.value.toUpperCase().trim():this.value;dUpdate()})});
   ['open','close'].forEach(function(k){$('d_'+k).addEventListener('input',function(){t[k]=fromLocalInput(this.value);dUpdate()})});
   $('d_setup').addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;var want=t.dir==='Long'?'Bullish':'Bearish',opp=want==='Bullish'?'Bearish':'Bullish';
     t.s4h=b.getAttribute('data-v')==='Normal'?want:opp;t.graded=true;dUpdate()});
   $('d_model').addEventListener('input',function(){t.model=normTf(this.value)||'15M';t.graded=true;dUpdate()});
-  ['dir','s4h','s1h','s15','plan'].forEach(function(k){$('d_'+k).addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;var v=b.getAttribute('data-v');t[k]=(k==='plan'&&v==='Auto')?'':v;
+  if($('d_kind'))$('d_kind').addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;D.kind=b.getAttribute('data-k');if(D.kind==='setup'){t.status=t.status||'missed';t.outcome=t.outcome||''}drawer()});
+  if($('d_status'))$('d_status').addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;t.status=b.getAttribute('data-v').toLowerCase();Array.prototype.forEach.call(this.querySelectorAll('button'),function(x){x.setAttribute('aria-pressed',x===b?'true':'false')})});
+  if($('d_outcome'))$('d_outcome').addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;var v={'Hit target':'tp','Hit stop':'sl','Neither':'be'}[b.getAttribute('data-v')];t.outcome=t.outcome===v?'':v;Array.prototype.forEach.call(this.querySelectorAll('button'),function(x){x.setAttribute('aria-pressed',x===b&&t.outcome?'true':'false')})});
+  $('dPost').onclick=function(){if(!t.shot&&!t.shot2){dMsg('Add a before or after screenshot first.');return}showPost(clone(t),D.kind==='setup'?'setup':'trade')};
+  ['dir','s4h','s1h','s15','plan'].forEach(function(k){if(!$('d_'+k))return;$('d_'+k).addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;var v=b.getAttribute('data-v');t[k]=(k==='plan'&&v==='Auto')?'':v;
     Array.prototype.forEach.call(this.querySelectorAll('button'),function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});t.graded=true;dUpdate()})});
   $('d_chk').addEventListener('click',function(ev){var b=ev.target.closest('button[data-k]');if(!b)return;var k=b.getAttribute('data-k');t.checks[k]=!t.checks[k];t.graded=true;dUpdate()});
-  [['d_mis','mistakes'],['d_tags','tags']].forEach(function(p){$(p[0]).addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;var v=b.getAttribute('data-v'),a=t[p[1]],i=a.indexOf(v);if(i>=0)a.splice(i,1);else a.push(v);b.setAttribute('aria-pressed',i<0?'true':'false')})});
-  $('d_shotIn').addEventListener('change',onShot);
-  if($('dDel'))$('dDel').onclick=function(){if(!D.armed){D.armed=true;this.textContent='Tap again to delete';return}delTrade(t.id)};
+  [['d_mis','mistakes'],['d_tags','tags']].forEach(function(p){if(!$(p[0]))return;$(p[0]).addEventListener('click',function(ev){var b=ev.target.closest('button');if(!b)return;var v=b.getAttribute('data-v'),a=t[p[1]],i=a.indexOf(v);if(i>=0)a.splice(i,1);else a.push(v);b.setAttribute('aria-pressed',i<0?'true':'false')})});
+  $('d_shotIn').addEventListener('change',onShot);$('d_shot2In').addEventListener('change',onShot);
+  if($('dDel'))$('dDel').onclick=function(){if(!D.armed){D.armed=true;this.textContent='Tap again to delete';return}if(D.kind==='setup'){removeSetup(t.id);closeDrawer()}else delTrade(t.id)};
 }
 function onKey(ev){if(ev.key==='Escape'&&D)closeDrawer()}
 document.addEventListener('keydown',onKey);
 function closeDrawer(){D=null;drawer()}
 function dMsg(s){if($('dMsg'))$('dMsg').textContent=s}
 function onShot(ev){
-  var file=ev.target.files&&ev.target.files[0];if(!file)return;
+  var file=ev.target.files&&ev.target.files[0];if(!file)return;var fld=ev.target.getAttribute('data-f')||'shot';
   var rd=new FileReader();
   rd.onload=function(){var img=new Image();img.onload=function(){
     var sc=Math.min(1,1400/img.width),c=document.createElement('canvas');c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
     c.getContext('2d').drawImage(img,0,0,c.width,c.height);
     c.toBlob(function(blob){
-      var local=URL.createObjectURL(blob); $('d_shot').innerHTML='<img class="shot" alt="Chart screenshot" src="'+local+'">';
+      var local=URL.createObjectURL(blob); $('d_'+fld).innerHTML='<img class="shot" alt="Chart screenshot" src="'+local+'">';
       var t=D.t;dMsg(Store.user?'Uploading screenshot…':'Saving screenshot…');
-      saveShot(t.id,blob).then(function(ref){if(D&&D.t===t){t.shot=ref;dMsg('Screenshot ready. Tap Save to keep it.')}})
+      saveShot(t.id+'-'+fld,blob).then(function(ref){if(D&&D.t===t){t[fld]=ref;shotCache[ref]=local;dMsg('Screenshot ready. Tap Save to keep it.')}})
       .catch(function(){dMsg('The screenshot could not be saved. Try a smaller image.')});
     },'image/jpeg',0.85)};img.onerror=function(){dMsg('That file is not an image. Pick a PNG or JPG.')};img.src=rd.result};
   rd.readAsDataURL(file);
@@ -866,7 +1063,10 @@ function onShot(ev){
 function body(t){var o=stripD(t);o._stamp=Date.now();return o}
 function saveDrawer(){
   var t=D.t; if(!t.symbol){dMsg('Add the market first.');$('d_symbol').focus();return}
-  putTrades([body(t)]);closeDrawer();
+  if(D.kind==='setup'){var sd=body(t);sd.status=sd.status||'missed';sd.time=sd.time||sd.open;if(sd.source!=='tv')sd.source='manual';putSetups([sd]);closeDrawer();return}
+  putTrades([body(t)]);
+  if(t.setupId){var su=S.setups.filter(function(x){return x.id===t.setupId})[0];if(su&&(su.status!=='taken'||su.tradeId!==t.id)){var c=clone(su);c.status='taken';c.tradeId=t.id;c._stamp=Date.now();putSetups([c])}}
+  closeDrawer();
 }
 function delTrade(id){removeTrade(id);closeDrawer()}
 
@@ -945,7 +1145,7 @@ function onImportFile(ev){
     var fresh=list.filter(function(t){return !have[t.id]});
     S.err='';
     if(!fresh.length){toast('All '+list.length+' positions are already in your journal.');return}
-    putTrades(fresh.map(body));
+    putTrades(fresh.map(body));autoMatch();
     toast('Imported '+fresh.length+' trades. Open each one to add your planned stop and grade it.');
   });
 }
@@ -991,10 +1191,10 @@ $('view').addEventListener('change',function(ev){var id=ev.target.id;
 $('view').addEventListener('input',function(ev){if(ev.target.id==='fQ'){S.tf.q=ev.target.value;render()}});
 
 /* ---------------- storage: this phone first, Supabase sync when signed in ---------------- */
-var K={t:'rhlj_trades',d:'rhlj_days',q:'rhlj_queue',cfg:'rhlj_cfg',u:'rhlj_user'};
+var K={t:'rhlj_trades',d:'rhlj_days',s:'rhlj_setups',q:'rhlj_queue',cfg:'rhlj_cfg',u:'rhlj_user'};
 var Store={sb:null,user:null,status:'local',msg:'',busy:false};
 function realTrades(){return S.demo?[]:S.trades}
-function saveCache(){lsSet(K.t,realTrades().map(stripD));lsSet(K.d,S.days)}
+function saveCache(){lsSet(K.t,realTrades().map(stripD));lsSet(K.d,S.days);lsSet(K.s,S.setups||[])}
 function showDemoIfEmpty(){if(!S.trades.length){S.trades=demoTrades();S.demo=true}}
 function statusText(){
   if(!S.loaded)return 'Loading…';
@@ -1024,10 +1224,10 @@ function flush(){
   var q=lsGet(K.q)||[];
   if(!q.length){if(Store.status!=='synced'){Store.status='synced';render()}return}
   Store.busy=true;if(Store.status!=='syncing'){Store.status='syncing';render()}
-  var it=q[0],tbl=it.k==='t'?'trades':'journal',p;
+  var it=q[0],tbl=it.k==='t'?'trades':it.k==='s'?'setups':'journal',p;
   if(it.op==='put'){
-    var data=it.k==='t'?(S.trades.filter(function(t){return t.id===it.id})[0]):S.days[it.id];
-    p=data?Store.sb.from(tbl).upsert({user_id:Store.user.id,id:it.id,data:it.k==='t'?stripD(data):data,updated_at:new Date().toISOString()},{onConflict:'user_id,id'}):Promise.resolve({});
+    var data=it.k==='t'?(S.trades.filter(function(t){return t.id===it.id})[0]):it.k==='s'?(S.setups.filter(function(t){return t.id===it.id})[0]):S.days[it.id];
+    p=data?Store.sb.from(tbl).upsert({user_id:Store.user.id,id:it.id,data:it.k!=='d'?stripD(data):data,updated_at:new Date().toISOString()},{onConflict:'user_id,id'}):Promise.resolve({});
   }else p=Store.sb.from(tbl).delete().eq('id',it.id);
   Promise.resolve(p).then(function(res){
     if(res&&res.error)throw res.error;
@@ -1040,8 +1240,12 @@ function flush(){
 }
 function pull(){
   if(!Store.user)return Promise.resolve();
-  return Promise.all([Store.sb.from('trades').select('id,data'),Store.sb.from('journal').select('id,data')]).then(function(r){
+  return Promise.all([Store.sb.from('trades').select('id,data'),Store.sb.from('journal').select('id,data'),Store.sb.from('setups').select('id,data')]).then(function(r){
     if(r[0].error)throw r[0].error;if(r[1].error)throw r[1].error;
+    S.setupsMissing=!!r[2].error;
+    if(!r[2].error){var qq=lsGet(K.q)||[],pp={};qq.forEach(function(x){pp[x.k+':'+x.id]=x});var loc={};(S.setups||[]).forEach(function(x){loc[x.id]=x});var so=[];
+      r[2].data.forEach(function(row){var p=pp['s:'+row.id];if(p&&p.op==='del')return;if(p&&loc[row.id]){so.push(loc[row.id]);return}var o=row.data||{};o.id=row.id;so.push(o)});
+      Object.keys(loc).forEach(function(id){var p=pp['s:'+id];if(p&&p.op==='put'&&!so.some(function(x){return x.id===id}))so.push(loc[id])});S.setups=so}
     var q=lsGet(K.q)||[],pend={};q.forEach(function(x){pend[x.k+':'+x.id]=x});
     var local={};realTrades().forEach(function(t){local[t.id]=t});
     var out=[];
@@ -1050,7 +1254,7 @@ function pull(){
     var days={};
     r[1].data.forEach(function(row){var p=pend['d:'+row.id];if(p&&p.op==='del')return;days[row.id]=(p&&S.days[row.id])?S.days[row.id]:row.data});
     Object.keys(S.days).forEach(function(k){var p=pend['d:'+k];if(p&&p.op==='put'&&!days[k])days[k]=S.days[k]});
-    S.trades=out;S.demo=false;S.days=days;saveCache();showDemoIfEmpty();
+    S.trades=out;S.demo=false;S.days=days;saveCache();showDemoIfEmpty();autoMatch();
     if(D&&!D.isNew&&!isDemo(D.t)&&!S.trades.some(function(t){return t.id===D.t.id})){D=null;drawer()}
     render();flush();
   }).catch(function(err){Store.status='error';Store.msg=(err&&err.message)||'Could not reach your account';render()});
@@ -1061,7 +1265,7 @@ function onUser(user){
   if(prev===user.id)return;
   if(lsGet(K.u)!==user.id){
     // first sign-in on this device: send everything already saved here
-    var items=realTrades().map(function(t){return{k:'t',op:'put',id:t.id}}).concat(Object.keys(S.days).map(function(k){return{k:'d',op:'put',id:k}}));
+    var items=realTrades().map(function(t){return{k:'t',op:'put',id:t.id}}).concat(Object.keys(S.days).map(function(k){return{k:'d',op:'put',id:k}})).concat((S.setups||[]).map(function(x){return{k:'s',op:'put',id:x.id}}));
     lsSet(K.u,user.id);if(items.length){var q=lsGet(K.q)||[];items.forEach(function(it){it.n=Date.now()+'-'+Math.random().toString(36).slice(2,7);q.push(it)});lsSet(K.q,q)}
   }
   Store.status='syncing';render();pull();
@@ -1112,7 +1316,7 @@ function vSettings(){
       '<div class="filters"><button class="btn ghost" type="button" id="auSync">Sync now</button><button class="btn ghost" type="button" id="auOut">Sign out</button></div>';
   }
   return '<section class="panel"><h2>Account and sync</h2>'+acct+'<div class="msg" id="setMsg" aria-live="polite">'+esc(Store.formMsg||'')+'</div></section>'+mt5Card(cfg)+
-  '<section class="panel"><h2>Account size</h2><p class="hint" style="margin:0">Used to show results in %, like TradeZella. Results in % = result in $ ÷ account size.</p><div class="filters"><input type="number" id="acctIn" inputmode="decimal" min="0" step="any" placeholder="e.g. 5000" value="'+(acctSize()||'')+'" style="width:160px"><button class="btn ghost" type="button" id="acctSave">Save</button><span class="msg" id="acctMsg"></span></div></section>'+
+  goalsSettings()+tvCard(cfg)+'<section class="panel"><h2>Account size</h2><p class="hint" style="margin:0">Used to show results in %, like TradeZella. Results in % = result in $ ÷ account size.</p><div class="filters"><input type="number" id="acctIn" inputmode="decimal" min="0" step="any" placeholder="e.g. 5000" value="'+(acctSize()||'')+'" style="width:160px"><button class="btn ghost" type="button" id="acctSave">Save</button><span class="msg" id="acctMsg"></span></div></section>'+
   '<section class="panel"><h2>Your data</h2><div class="filters"><button class="btn ghost" type="button" data-act="import">Import MT5 report</button><button class="btn ghost" type="button" id="bkOut">Download backup</button><button class="btn ghost" type="button" id="bkInBtn">Restore backup</button><input type="file" id="bkIn" accept=".json,application/json" hidden></div>'+
     '<p class="hint" style="margin:0">'+plural(realTrades().length,'trade')+' and '+plural(Object.keys(S.days).filter(isDayKey).length,'journal day')+' saved. Download a backup now and then, even with sync on.</p></section>'+
   '<section class="panel"><h2>Put it on your home screen</h2><p style="margin:0">iPhone: open this page in Safari, tap Share, then <b>Add to Home Screen</b>.<br>Android: open it in Chrome, tap the ⋮ menu, then <b>Install app</b>.</p></section>';
@@ -1169,6 +1373,22 @@ $('view').addEventListener('click',function(ev){
   if(id==='mtShow'){MT.show=!MT.show;render();return}
   if(id==='mtNew'){if(MT.code&&!MT.armed){MT.armed=true;render();return}newSyncCode();return}
 });
+function tvCard(cfg){
+  if(!Store.user||!cfg)return '';
+  var ref=(String(cfg.url).match(/^https:\/\/([a-z0-9]+)\.supabase\./i)||[])[1]||'';
+  var body;
+  if(!MT.code)body='<p class="hint" style="margin:0">Make a sync code in <b>Sync from MT5</b> above first. The same code links TradingView.</p>';
+  else{var url=location.origin+'/api/tv?code='+encodeURIComponent(MT.code)+'&ref='+ref+'&key='+encodeURIComponent(cfg.key);
+    body='<label class="f" for="tvUrl">Webhook URL<div class="filters" style="flex-wrap:nowrap"><input type="text" id="tvUrl" readonly value="'+esc(url)+'" style="flex:1;min-width:0"'+(MT.show?'':' class="masked"')+'><button class="btn ghost sm" type="button" data-copy="tvUrl">Copy</button></div></label>'}
+  return '<section class="panel"><h2>Sync from TradingView</h2>'+body+
+    (S.setupsMissing?'<div class="verdict bad">Run supabase-tv-sync.sql in Supabase first.</div>':'')+
+    '<ol class="hint" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">'+
+    '<li>In Supabase, run <b>supabase-tv-sync.sql</b> once.</li>'+
+    '<li>Update the indicator on TradingView with the new RHL_FX+G code.</li>'+
+    '<li>Open your grade alert (condition RHL_FX+G → Any alert() function call), go to Notifications, tick <b>Webhook URL</b> and paste the URL above.</li>'+
+    '<li>Every grade alert now lands in Trades → Setups. When you take the trade in MT5, the journal links it and fills in the grade, biases, checklist and TradingView stop.</li></ol>'+
+    '<p class="hint" style="margin:0">Webhooks need a paid TradingView plan (Essential or higher).</p></section>';
+}
 function plural(n,w){return n+' '+w+(n===1?'':'s')}
 function setMsg(t){Store.formMsg=t;if($('setMsg'))$('setMsg').textContent=t}
 $('view').addEventListener('click',function(ev){
@@ -1208,7 +1428,7 @@ window.addEventListener('online',function(){flush()});
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&Store.user)pull()});
 
 /* ---------------- start ---------------- */
-S.trades=lsGet(K.t)||[];S.days=lsGet(K.d)||{};S.demo=false;showDemoIfEmpty();S.loaded=true;
+S.trades=lsGet(K.t)||[];S.days=lsGet(K.d)||{};S.setups=lsGet(K.s)||[];S.demo=false;showDemoIfEmpty();S.loaded=true;autoMatch();
 connect(lsGet(K.cfg));
 render();
 if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(function(){});
