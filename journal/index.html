@@ -126,6 +126,12 @@ tbody tr.click:hover td{background:rgba(255,255,255,.025)}
 
 /* calendar */
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.cal.cal8{grid-template-columns:repeat(7,minmax(0,1fr)) minmax(0,1.15fr)}
+.cal .d small.wr{color:var(--faint)}
+.cal .wkc{background:var(--panel);border-color:var(--line2);text-decoration:none;color:var(--text)}
+.wkg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;margin-top:4px}
+.stat{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--mute)}
+.stat b{font-size:14px;font-weight:500;color:var(--text)}
 .cal .dh{font-size:11px;color:var(--mute);text-align:center;text-transform:uppercase;letter-spacing:.06em}
 .cal .d{min-height:78px;border:1px solid var(--line);border-radius:8px;padding:6px;display:flex;flex-direction:column;gap:2px;background:var(--inset);cursor:pointer;text-align:left;min-width:0}
 .cal .d.out{opacity:.35;cursor:default}
@@ -212,7 +218,7 @@ input.masked{-webkit-text-security:disc;color:var(--mute)}
   <div class="wrap">
     <div class="row1">
       <div class="brand"><b>RHL<i>_</i>JOURNAL</b><span id="syncNote">Loading…</span></div>
-      <div class="seg" id="unitSeg" aria-label="Show results in"><button type="button" data-u="R" aria-pressed="true">R</button><button type="button" data-u="$" aria-pressed="false">$</button></div>
+      <div class="seg" id="unitSeg" aria-label="Show results in"><button type="button" data-u="R" aria-pressed="true">R</button><button type="button" data-u="$" aria-pressed="false">$</button><button type="button" data-u="%" aria-pressed="false">%</button></div>
       <button class="btn ghost" type="button" id="importBtn">Import MT5</button>
       <button class="btn" type="button" id="addBtn">+ Trade</button>
       <a class="btn ghost" href="#settings" id="setBtn" aria-label="Settings" title="Settings">⚙</a>
@@ -337,13 +343,15 @@ function derive(t){
   return d;
 }
 function all(){return S.trades.map(function(t){if(!t._d||t._v!==t._stamp){t._d=derive(t);t._v=t._stamp}return t})}
-function val(t){return S.unit==='R'?t._d.r:t._d.pnl}
+function acctSize(){var c=S.days&&S.days['cfg-account'];var n=c?+c.size:0;return n>0?n:0}
+function val(t){if(S.unit==='R')return t._d.r;if(S.unit==='%'){var a=acctSize();return a&&t._d.pnl!=null?t._d.pnl/a*100:null}return t._d.pnl}
 function fmtV(v,unit,sign){
   unit=unit||S.unit; if(v==null||isNaN(v))return'-';
   var sg=sign===false?'':(v>0?'+':v<0?'−':'');var a=Math.abs(v);
+  if(unit==='%')return sg+a.toFixed(2)+'%';
   return unit==='R'?sg+a.toFixed(2)+'R':sg+'$'+a.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 }
-function fmtAx(v){var a=Math.abs(v),s=v<0?'−':'';return S.unit==='R'?s+(a%1?a.toFixed(1):a.toFixed(0))+'R':s+'$'+a.toLocaleString(undefined,{maximumFractionDigits:0})}
+function fmtAx(v){var a=Math.abs(v),s=v<0?'−':'';if(S.unit==='%')return s+(a%1?a.toFixed(1):a.toFixed(0))+'%';return S.unit==='R'?s+(a%1?a.toFixed(1):a.toFixed(0))+'R':s+'$'+a.toLocaleString(undefined,{maximumFractionDigits:0})}
 function vClass(v){return v==null?'m':v>0?'g':v<0?'b':'w'}
 
 function inRange(t){
@@ -384,7 +392,7 @@ function stats(list){
 }
 function rhlScore(st){
   function c(x){return Math.max(0,Math.min(100,x))}
-  var ddRef=S.unit==='R'?10:(st.gl>0&&st.avgL>0?st.avgL*10:1);
+  var ddRef=S.unit==='R'?10:S.unit==='%'?10:(st.gl>0&&st.avgL>0?st.avgL*10:1);
   var ax=[
     {k:'Win rate',v:st.wr==null?0:c(st.wr/0.6*100)},
     {k:'Profit factor',v:st.pf==null?0:c((isFinite(st.pf)?st.pf:3)/2.5*100)},
@@ -458,6 +466,7 @@ function breakdown(list,keyFn,order){
 function setBanner(){
   var h='';
   if(S.demo&&S.loaded)h='<div class="banner"><p><b>These are example trades.</b> Nothing here is yours yet. Import your MT5 report or add a trade, and the examples disappear.</p><button class="btn sm" type="button" data-act="import">Import MT5 report</button></div>';
+  if(S.unit==='%'&&!acctSize())h+='<div class="banner warn"><p>To show results in %, set your account size in Settings.</p><a class="btn sm" href="#settings">Open Settings</a></div>';
   if(S.err)h+='<div class="banner warn"><p>'+esc(S.err)+'</p></div>';
   $('bannerBox').innerHTML=h;
 }
@@ -484,7 +493,7 @@ function vDashboard(){
   '</div>'+
   '<div class="grid-dash">'+
     '<section class="panel"><h2>RHL score</h2><div class="score"><span class="big num '+(sc.total>=70?'g':sc.total>=45?'w':'b')+'">'+sc.total+'</span><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="scale"><i style="left:'+sc.total+'%"></i></div><span class="hint">Six parts: results plus how well you follow the model.</span></div></div>'+radar(sc.axes)+'</section>'+
-    '<section class="panel"><div class="ph"><h2>Cumulative result</h2><span class="hint">'+(S.unit==='R'?'In R, from your planned stop':'In account currency, after costs')+'</span></div>'+lineChart(st.seq)+
+    '<section class="panel"><div class="ph"><h2>Cumulative result</h2><span class="hint">'+(S.unit==='R'?'In R, from your planned stop':S.unit==='%'?'In % of your account size, after costs':'In account currency, after costs')+'</span></div>'+lineChart(st.seq)+
       '<h2 style="margin-top:6px">Daily result</h2>'+barChart(st.days,st.dayKeys)+'</section>'+
   '</div>'+
   '<div class="grid2">'+
@@ -530,20 +539,40 @@ function vTrades(){
 
 function vCalendar(){
   var now=new Date(),m=S.month||{y:now.getFullYear(),m:now.getMonth()};S.month=m;
-  var list=all(),days={},cnt={};
-  list.forEach(function(t){if(t._d.res==='open'||val(t)==null)return;var k=t._d.day;days[k]=(days[k]||0)+val(t);cnt[k]=(cnt[k]||0)+1});
-  var first=new Date(m.y,m.m,1),start=new Date(first);start.setDate(1-((first.getDay()+6)%7));
+  var list=all(),days={},cnt={},wins={};
+  list.forEach(function(t){if(t._d.res==='open'||val(t)==null)return;var k=t._d.day;days[k]=(days[k]||0)+val(t);cnt[k]=(cnt[k]||0)+1;if(t._d.res==='win')wins[k]=(wins[k]||0)+1});
+  var first=new Date(m.y,m.m,1),start=new Date(first);start.setDate(1-first.getDay());
   var cells='',monthNet=0,mDays=0,gDays=0,weeks=[];
-  for(var w=0;w<6;w++){var d0=new Date(start);d0.setDate(start.getDate()+w*7);if(w>0&&d0>first&&d0.getMonth()!==m.m)break;var wk=0,wkHas=false;
-    for(var i=0;i<7;i++){var d=new Date(start);d.setDate(start.getDate()+w*7+i);var k=dayKey(d),inM=d.getMonth()===m.m,v=days[k],note=S.days[k];
-      if(inM&&v!=null){monthNet+=v;mDays++;if(v>0)gDays++;wk+=v;wkHas=true}
-      cells+='<button type="button" class="d'+(inM?'':' out')+(inM&&v!=null?(v>0?' win':v<0?' loss':''):'')+(inM&&note?' note':'')+'" '+(inM?'data-day="'+k+'"':'disabled tabindex="-1"')+'><span class="n">'+d.getDate()+'</span>'+(inM&&v!=null?'<b class="'+vClass(v)+'">'+fmtV(v)+'</b><small>'+cnt[k]+' trade'+(cnt[k]>1?'s':'')+'</small>':'')+'</button>'}
-    weeks.push(wkHas?wk:null);}
+  for(var w=0;w<6;w++){var d0=new Date(start);d0.setDate(start.getDate()+w*7);if(w>0&&d0>first&&d0.getMonth()!==m.m)break;
+    var wkKeys=[];
+    for(var i=0;i<7;i++){var d=new Date(start);d.setDate(start.getDate()+w*7+i);var k=dayKey(d),inM=d.getMonth()===m.m,v=days[k],note=S.days[k];wkKeys.push(k);
+      if(inM&&v!=null){monthNet+=v;mDays++;if(v>0)gDays++}
+      cells+='<button type="button" class="d'+(inM?'':' out')+(inM&&v!=null?(v>0?' win':v<0?' loss':''):'')+(inM&&note?' note':'')+'" '+(inM?'data-day="'+k+'"':'disabled tabindex="-1"')+'><span class="n">'+d.getDate()+'</span>'+(inM&&v!=null?'<b class="'+vClass(v)+'">'+fmtV(v)+'</b><small>'+cnt[k]+' trade'+(cnt[k]>1?'s':'')+'</small><small class="wr">'+Math.round((wins[k]||0)/cnt[k]*100)+'% win</small>':'')+'</button>'}
+    var ws=weekStats(wkKeys[0],wkKeys[6],list);weeks.push({n:w+1,from:wkKeys[0],to:wkKeys[6],st:ws});
+    cells+='<a class="d wkc" href="#wk-'+(w+1)+'"><span class="n">Week '+(w+1)+'</span>'+(ws.st.closed?'<b class="'+vClass(ws.st.net)+'">'+fmtV(ws.st.net)+'</b><small>'+ws.tdays+' day'+(ws.tdays===1?'':'s')+'</small>':'<small>No trades</small>')+'</a>'}
   return '<section class="panel"><div class="ph"><div class="filters"><button class="btn ghost sm" type="button" id="mPrev" aria-label="Previous month">←</button><h2 style="font-size:15px;color:var(--text);text-transform:none;letter-spacing:0">'+MONTHS[m.m]+' '+m.y+'</h2><button class="btn ghost sm" type="button" id="mNext" aria-label="Next month">→</button></div>'+
-    '<span class="hint">Month <span class="num '+vClass(monthNet)+'">'+fmtV(mDays?monthNet:null)+'</span> · '+gDays+' of '+mDays+' days green</span></div>'+
-    '<div class="cal">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(function(x){return '<div class="dh">'+x+'</div>'}).join('')+cells+'</div>'+
-    '<div class="filters wk">'+weeks.map(function(v,i){return '<span class="pill">Week '+(i+1)+': <span class="num '+vClass(v)+'">'+fmtV(v)+'</span></span>'}).join('')+'</div>'+
-    '<p class="hint" style="margin:0">Tap a day to write that day’s plan and review. A blue top edge means the day has notes.</p></section>';
+    '<span class="hint">Monthly stats: <span class="num '+vClass(monthNet)+'">'+fmtV(mDays?monthNet:null)+'</span> · '+mDays+' day'+(mDays===1?'':'s')+' traded · '+gDays+' green</span></div>'+
+    '<div class="cal cal8">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat','Week'].map(function(x){return '<div class="dh">'+x+'</div>'}).join('')+cells+'</div>'+
+    '<p class="hint" style="margin:0">Tap a day to write that day’s plan and review. A blue top edge means the day has notes. Tap a week for its summary.</p></section>'+
+  '<section class="panel"><h2>Weekly summary</h2><div class="jl">'+weeks.slice().reverse().map(function(x){return weekCard(x)}).join('')+'</div></section>';
+}
+function weekStats(from,to,list){
+  var tl=list.filter(function(t){var k=t._d.day;return k>=from&&k<=to});
+  var st=stats(tl),dk={};tl.forEach(function(t){if(t._d.res!=='open')dk[t._d.day]=1});
+  var rules=null;try{var P=progressData(),a=0,p=0;Object.keys(P.days).forEach(function(k){if(k>=from&&k<=to&&P.days[k].tracked&&!(k===P.today&&P.days[k].pass<P.days[k].app)){a+=P.days[k].app;p+=P.days[k].pass}});rules=a?p/a:null}catch(e){}
+  var setups={Normal:0,Impulsive:0};tl.forEach(function(t){if(t._d.setup)setups[t._d.setup]++});
+  return{tl:tl,st:st,tdays:Object.keys(dk).length,rules:rules,setups:setups};
+}
+function weekCard(x){
+  var w=x.st,st=w.st,f=new Date(x.from+'T12:00'),t=new Date(x.to+'T12:00');
+  var range=f.toLocaleDateString([], {month:'short',day:'numeric'})+' – '+t.toLocaleDateString([], {month:'short',day:'numeric'});
+  if(!w.tl.length)return '<div class="je" id="wk-'+x.n+'" style="cursor:default"><div class="top2"><b>Week '+x.n+' <span class="m" style="font-weight:400">'+range+'</span></b><span class="m">No trades</span></div></div>';
+  var best=w.tl.filter(function(t){return val(t)!=null}).sort(function(a,b){return val(b)-val(a)});
+  function cell(l,v,c){return '<div class="stat"><span>'+l+'</span><b class="num '+(c||'')+'">'+v+'</b></div>'}
+  return '<div class="je" id="wk-'+x.n+'" style="cursor:default"><div class="top2"><b>Week '+x.n+' <span class="m" style="font-weight:400">'+range+'</span></b><b class="num '+vClass(st.net)+'">'+fmtV(st.closed?st.net:null)+'</b></div>'+
+    '<div class="wkg">'+cell('Trades',st.n+(w.tdays?' · '+w.tdays+'d':''))+cell('Win rate',pct(st.wr))+cell('Profit factor',ratio(st.pf),st.pf!=null&&st.pf>=1?'g':st.pf!=null?'b':'')+
+    cell('Avg grade',st.avgScore==null?'-':Math.round(st.avgScore)+'%')+cell('In plan',pct(st.adherence),st.adherence!=null&&st.adherence<.7?'b':'')+cell('Rules kept',pct(w.rules),w.rules!=null&&w.rules<.7?'b':w.rules!=null&&w.rules>=.9?'g':'')+'</div>'+
+    '<div class="hint">'+(w.setups.Normal||w.setups.Impulsive?'Setups: '+w.setups.Normal+' Normal · '+w.setups.Impulsive+' Impulsive · ':'')+(best.length?'Best '+esc(best[0].symbol)+' <span class="'+vClass(val(best[0]))+'">'+fmtV(val(best[0]))+'</span> · Worst '+esc(best[best.length-1].symbol)+' <span class="'+vClass(val(best[best.length-1]))+'">'+fmtV(val(best[best.length-1]))+'</span>':'')+'</div></div>';
 }
 
 function vPlaybook(){
@@ -1074,6 +1103,7 @@ function vSettings(){
       '<div class="filters"><button class="btn ghost" type="button" id="auSync">Sync now</button><button class="btn ghost" type="button" id="auOut">Sign out</button></div>';
   }
   return '<section class="panel"><h2>Account and sync</h2>'+acct+'<div class="msg" id="setMsg" aria-live="polite">'+esc(Store.formMsg||'')+'</div></section>'+mt5Card(cfg)+
+  '<section class="panel"><h2>Account size</h2><p class="hint" style="margin:0">Used to show results in %, like TradeZella. Results in % = result in $ ÷ account size.</p><div class="filters"><input type="number" id="acctIn" inputmode="decimal" min="0" step="any" placeholder="e.g. 5000" value="'+(acctSize()||'')+'" style="width:160px"><button class="btn ghost" type="button" id="acctSave">Save</button><span class="msg" id="acctMsg"></span></div></section>'+
   '<section class="panel"><h2>Your data</h2><div class="filters"><button class="btn ghost" type="button" data-act="import">Import MT5 report</button><button class="btn ghost" type="button" id="bkOut">Download backup</button><button class="btn ghost" type="button" id="bkInBtn">Restore backup</button><input type="file" id="bkIn" accept=".json,application/json" hidden></div>'+
     '<p class="hint" style="margin:0">'+plural(realTrades().length,'trade')+' and '+plural(Object.keys(S.days).filter(isDayKey).length,'journal day')+' saved. Download a backup now and then, even with sync on.</p></section>'+
   '<section class="panel"><h2>Put it on your home screen</h2><p style="margin:0">iPhone: open this page in Safari, tap Share, then <b>Add to Home Screen</b>.<br>Android: open it in Chrome, tap the ⋮ menu, then <b>Install app</b>.</p></section>';
@@ -1154,6 +1184,7 @@ $('view').addEventListener('click',function(ev){
   if(id==='auSync'){setMsg('');pull();return}
   if(id==='bkOut'){var data=JSON.stringify({app:'RHL Journal',saved:new Date().toISOString(),trades:realTrades().map(stripD),days:S.days},null,1);
     var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download='rhl-journal-backup-'+dayKey(new Date())+'.json';document.body.appendChild(a);a.click();setTimeout(function(){a.remove()},1000);return}
+  if(id==='acctSave'){var v=+$('acctIn').value;putDay('cfg-account',v>0?{size:v,_stamp:Date.now()}:null);var am=$('acctMsg');if(am)am.textContent=v>0?'Saved.':'Cleared.';return}
   if(id==='bkInBtn'){$('bkIn').value='';$('bkIn').click();return}
 });
 $('view').addEventListener('change',function(ev){
